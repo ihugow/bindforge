@@ -1,0 +1,21 @@
+[package]
+name = "remap-desktop"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+remap-config = { path = "../../../crates/remap-config" }
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+remap-core = { path = "../../../crates/remap-core" }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = "5.19"
+remap-ipc = { path = "../../../crates/remap-ipc", features = ["dbus"] }

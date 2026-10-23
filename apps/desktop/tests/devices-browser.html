@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Device inventory fixture</title><body><main>
+<p>Fixture visual: dados sintéticos, sem conexão com o daemon.</p><div id="root"></div></main>
+<script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { DevicesPanel } from '../src/devices-panel.tsx';
+import '../src/style.css';
+const read = async () => [
+  { id: 'one', name: 'Teclado de exemplo', kind: 'keyboard', connection: 'usb', vendor_id: 0x1234, product_id: 0x5678 },
+  { id: 'two', name: 'Mouse virtual de exemplo', kind: 'mouse', connection: 'virtual', vendor_id: null, product_id: null },
+];
+createRoot(document.getElementById('root')).render(React.createElement(DevicesPanel, { native: true, connected: true, read }));
+</script></body></html>

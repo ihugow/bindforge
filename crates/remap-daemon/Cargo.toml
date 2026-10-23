@@ -1,0 +1,29 @@
+[package]
+name = "remap-daemon"
+version.workspace = true
+edition.workspace = true
+rust-version = "1.87"
+license.workspace = true
+
+[dependencies]
+remap-config = { path = "../remap-config" }
+remap-ipc = { path = "../remap-ipc" }
+remap-core = { path = "../remap-core" }
+platform-kde = { path = "../platform-kde" }
+
+[features]
+default = []
+linux-devices = ["dep:platform-linux"]
+kde-dbus = ["dep:async-signal", "dep:futures-lite", "platform-kde/dbus", "platform-linux/native-input", "remap-ipc/dbus", "linux-devices"]
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+futures-lite = "2"
+zbus = "5.19"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+async-signal = { version = "0.2", optional = true }
+futures-lite = { version = "2", optional = true }
+platform-linux = { path = "../platform-linux", optional = true }

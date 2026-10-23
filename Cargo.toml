@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = ["crates/remap-core", "crates/remap-config", "crates/remap-ipc", "crates/platform-kde", "crates/platform-linux", "crates/remap-daemon"]
+exclude = ["apps/desktop/src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "MIT"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

@@ -1,0 +1,10 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Remapeamento do mouse — teste local</title><body><main>
+<header><span class="eyebrow">TESTE VISUAL · NENHUM DISPOSITIVO FÍSICO</span><h1>App Buttons Remap</h1></header><div id="root"></div>
+</main><script type="module">
+import React from 'react'; import {createRoot} from 'react-dom/client';
+import {NativeInputPanel} from '../src/native-input-panel.tsx'; import '../src/style.css';
+let state={active:false,device_id:'',message:''};
+const api={status:async()=>structuredClone(state),start:async id=>{state={active:true,device_id:id,message:''};return structuredClone(state)},pause:async()=>{state={active:false,device_id:'',message:'Remapeamento pausado. O mouse está com seu funcionamento original.'};return structuredClone(state)}};
+const config={version:1,revision:1,fallback_id:'default',profiles:[],devices:[{id:'fixture',name:'Logitech G PRO Wireless',kind:'mouse',interface_id:'fixture-only',button_count:5,layout:null}]};
+createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode,null,React.createElement(NativeInputPanel,{native:true,connected:true,simulation:true,config,api})));
+</script></body></html>

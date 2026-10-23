@@ -1,0 +1,22 @@
+[package]
+name = "platform-kde"
+version.workspace = true
+edition.workspace = true
+rust-version = "1.87"
+license.workspace = true
+
+[dependencies]
+remap-ipc = { path = "../remap-ipc" }
+remap-core = { path = "../remap-core" }
+blocking = { version = "1", optional = true }
+zbus = { version = "5.19", optional = true }
+
+[features]
+default = []
+dbus = ["dep:blocking", "dep:zbus", "remap-ipc/dbus", "dep:platform-linux"]
+
+[lints]
+workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+platform-linux = { path = "../platform-linux", features = ["dbus", "native-input"], optional = true }

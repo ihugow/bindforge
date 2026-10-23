@@ -1,0 +1,27 @@
+{
+  "name": "app-buttons-remap-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "tauri": "tauri",
+    "test": "node --experimental-strip-types --test src/daemon-status.test.mjs src/devices.test.mjs src/profiles.test.mjs src/window-capture.test.mjs src/mouse-bindings.test.mjs src/configured-devices.test.mjs src/kwin-integration.test.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.8.0",
+    "vite": "^6.3.0"
+  },
+  "engines": {
+    "node": ">=22.6.0"
+  }
+}

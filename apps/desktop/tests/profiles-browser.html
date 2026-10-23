@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perfis — teste da interface</title><body><main>
+<p>Teste da interface com dados em memória. Não grava seus perfis.</p><div id="root"></div>
+<label for="capture-result">Resultado da captura simulada</label><select id="capture-result"><option value="firefox">Firefox</option><option value="steam:1808500">ARC Raiders</option><option value="gamescope">Gamescope genérico</option><option value="timeout">Tempo esgotado</option><option value="waiting">Aguardar cancelamento</option></select>
+<output id="save-result" aria-live="polite">Nenhuma gravação de teste.</output></main>
+<script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { ProfileName } from '../src/profile-name.tsx';
+import { ProfilesPanel } from '../src/profiles-panel.tsx';
+import '../src/style.css';
+const marvelId = 'profile-b4985e28-8d9d-41ab-a04a-868fb56aa0f9';
+let stored = { version: 1, revision: 0, fallback_id: 'default', profiles: [
+  { id: 'default', name: 'Padrão', enabled: true, priority: 0, rules: [], bindings: [] },
+  { id: 'firefox', name: 'Firefox', enabled: true, priority: 10,
+    rules: [{ app_id: 'firefox', executable: null, title_contains: null }],
+    bindings: [{ device_id: null, input: { MouseButton: 8 }, action: { KeyChord: ['Alt', 'Left'] } }] },
+] };
+stored.profiles.push({ id: marvelId, name: 'Marvel Rivals', enabled: true, priority: 10, rules: [{ app_id: 'marvel-win64-shipping.exe', executable: null, title_contains: null }], bindings: [] });
+const api = {
+  load: async () => structuredClone(stored),
+  save: async (config, expected) => {
+    if (expected !== stored.revision) throw new Error('Conflito de revisão.');
+    stored = structuredClone({ ...config, revision: expected + 1 });
+    document.getElementById('save-result').textContent = `Gravação de teste: revisão ${stored.revision}, ${stored.profiles.length} perfis.`;
+    return structuredClone(stored);
+  },
+};
+const captureStart = async receive => {
+  const result = document.getElementById('capture-result').value;
+  const timer = result === 'waiting' ? null : setTimeout(() => receive(result === 'timeout'
+    ? { kind: 'error', message: 'Tempo esgotado. Inicie a captura novamente.' }
+    : { kind: 'captured', app_id: result }), 1500);
+  return () => { if (timer !== null) clearTimeout(timer); };
+};
+function Fixture() {
+  const [config, setConfig] = React.useState();
+  return React.createElement(React.Fragment, null,
+    React.createElement('section', null,
+      React.createElement('h2', null, 'Estado de teste do daemon'),
+      React.createElement('p', null, 'Perfil selecionado: ', React.createElement(ProfileName, { id: marvelId, config })),
+      React.createElement('p', null, 'Última troca: ', React.createElement(ProfileName, { id: marvelId, config }))),
+    React.createElement(ProfilesPanel, { native: true, connected: true, onSaved: () => {}, onConfigChange: setConfig, api, captureStart }));
+}
+createRoot(document.getElementById('root')).render(React.createElement(Fixture));
+</script></body></html>

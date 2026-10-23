@@ -1,0 +1,18 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Assistente KDE — teste local</title><body><main>
+<header><span class="eyebrow">TESTE VISUAL · DADOS SINTÉTICOS</span><h1>App Buttons Remap</h1></header><div id="root"></div>
+</main><script type="module">
+import React from 'react'; import {createRoot} from 'react-dom/client';
+import {KwinIntegrationPanel} from '../src/kwin-integration-panel.tsx'; import '../src/style.css';
+let state = {kwin_available:true, loaded:false, daemon_connected:true, focus_received:false, legacy_disabled:false, message:'Aguardando conexão automática.'};
+const api = {status:async()=>structuredClone(state), configure:async()=>{ state={...state, loaded:true, focus_received:true, legacy_disabled:true, message:''}; return structuredClone(state); }};
+function Fixture() {
+ const [scenario, setScenario]=React.useState('missing');
+ return React.createElement(React.Fragment, null,
+  React.createElement('label', {htmlFor:'scenario'}, 'Cenário de teste'),
+  React.createElement('select', {id:'scenario', className:'app-select', value:scenario, onChange:e=>{
+   const value=e.target.value; state={kwin_available:value!=='unsupported', loaded:value==='ready', daemon_connected:true, focus_received:value==='ready', legacy_disabled:value==='ready', message:''}; setScenario(value);
+  }}, React.createElement('option',{value:'missing'},'Aguardando conexão'), React.createElement('option',{value:'ready'},'Conexão automática ativa'), React.createElement('option',{value:'unsupported'},'Outro ambiente')),
+  React.createElement(KwinIntegrationPanel, {key:scenario, native:true, active:true, api}));
+}
+createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode,null,React.createElement(Fixture)));
+</script></body></html>

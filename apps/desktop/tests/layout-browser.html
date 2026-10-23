@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Organização da interface — teste</title><body><main>
+<header><span class="eyebrow">TESTE DA INTERFACE · DADOS SINTÉTICOS</span><h1>App Buttons Remap</h1></header>
+<div id="root"></div></main>
+<script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { WorkspaceTabs } from '../src/workspace-tabs.tsx';
+import { ProfileHistory } from '../src/profile-history.tsx';
+import { ProfilesPanel } from '../src/profiles-panel.tsx';
+import { DevicesPanel } from '../src/devices-panel.tsx';
+import '../src/style.css';
+const config = { version: 1, revision: 0, fallback_id: 'default', profiles: [
+  { id: 'default', name: 'Padrão', enabled: true, priority: 0, rules: [], bindings: [] },
+  { id: 'game', name: 'Marvel Rivals', enabled: true, priority: 10, rules: [{ app_id: 'marvel-win64-shipping.exe', executable: null, title_contains: null }], bindings: [] },
+] };
+const status = { protocol_version: 1, simulation: true, active_profile_id: 'game', focus_state: 'focused', revision: '2', history_available: true,
+  recent_profiles: [{ revision: '1', profile_id: 'default' }, { revision: '2', profile_id: 'game' }] };
+const read = async () => [
+  { id: 'mouse', name: 'Mouse de teste', kind: 'mouse', connection: 'usb', vendor_id: null, product_id: null },
+  { id: 'keyboard', name: 'Teclado de teste', kind: 'keyboard', connection: 'usb', vendor_id: null, product_id: null },
+];
+const api = { load: async () => config, save: async next => next };
+createRoot(document.getElementById('root')).render(React.createElement(WorkspaceTabs, {
+  profiles: visible => React.createElement(React.Fragment, null,
+    React.createElement('section', null,
+      React.createElement('h2', null, 'Perfil no daemon'),
+      React.createElement('p', null, 'Perfil selecionado: Marvel Rivals'),
+      React.createElement(ProfileHistory, { status, config })),
+    React.createElement(ProfilesPanel, { active: visible, native: true, connected: true, onSaved: () => {}, api })),
+  devices: React.createElement(DevicesPanel, { native: true, connected: true, read }),
+}));
+</script></body></html>

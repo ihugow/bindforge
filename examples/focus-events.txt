@@ -1,0 +1,5 @@
+firefox
+firefox
+org.kde.konsole
+unknown.app
+

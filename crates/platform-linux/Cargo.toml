@@ -1,0 +1,26 @@
+[package]
+name = "platform-linux"
+version.workspace = true
+edition.workspace = true
+rust-version = "1.87"
+license.workspace = true
+
+[dependencies]
+remap-core = { path = "../remap-core" }
+remap-ipc = { path = "../remap-ipc", optional = true }
+zbus = { version = "5.19", optional = true }
+blocking = { version = "1", optional = true }
+futures-lite = { version = "2", optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+udev = "0.9"
+rustix = { version = "1.1", features = ["fs"], optional = true }
+evdev = { version = "0.13.2", optional = true }
+
+[features]
+default = []
+native-input = ["dep:evdev", "dep:rustix"]
+dbus = ["dep:remap-ipc", "remap-ipc/dbus", "dep:zbus", "dep:blocking", "dep:futures-lite"]
+
+[lints]
+workspace = true

@@ -1,0 +1,12 @@
+{
+  "KPlugin": {
+    "Id": "app-buttons-remap-focus",
+    "Name": "App Buttons Remap — Focus Prototype",
+    "Description": "Experimental app ID observer; no input remapping",
+    "Version": "0.1.1",
+    "License": "MIT"
+  },
+  "X-Plasma-API": "javascript",
+  "X-Plasma-MainScript": "code/main.js",
+  "KPackageStructure": "KWin/Script"
+}

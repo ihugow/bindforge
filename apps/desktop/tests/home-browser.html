@@ -1,0 +1,29 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Início — editor visual em teste</title><body><main>
+<header><span class="eyebrow">TESTE VISUAL · DADOS SINTÉTICOS</span><h1>App Buttons Remap</h1><p>Seus dispositivos. Um perfil para cada aplicativo.</p></header><div id="root"></div>
+</main><script type="module">
+import React from 'react'; import { createRoot } from 'react-dom/client';
+import { WorkspaceTabs } from '../src/workspace-tabs.tsx'; import { HomePanel } from '../src/home-panel.tsx';
+import { ProfilesPanel } from '../src/profiles-panel.tsx'; import { DevicesPanel } from '../src/devices-panel.tsx'; import '../src/style.css';
+let stored = { version: 1, revision: 0, fallback_id: 'default', devices: [
+ { id: 'configured-mouse', name: 'Logitech G PRO Wireless', kind: 'mouse', interface_id: 'mouse-a', button_count: 5, layout: null },
+ { id: 'configured-keyboard', name: 'Aula F99', kind: 'keyboard', interface_id: 'keyboard', button_count: null, layout: 'ansi' }
+], profiles: [
+ { id: 'default', name: 'Padrão', enabled: true, priority: 0, rules: [], bindings: [] },
+ { id: 'game', name: 'Marvel Rivals', enabled: true, priority: 10, rules: [{ app_id: 'marvel-win64-shipping.exe', executable: null, title_contains: null }], bindings: [] }
+] };
+const api = { load: async () => structuredClone(stored), save: async (config, revision) => {
+ if (revision !== stored.revision) throw new Error('Conflito de revisão.');
+ stored = structuredClone({ ...config, revision: revision + 1 }); return structuredClone(stored);
+} };
+const read = async () => [{ id: 'mouse-a', battery: { percentage: 28, state: 'discharging' }, name: 'Mouse de teste', kind: 'mouse', connection: 'usb', vendor_id: null, product_id: null }, { id: 'keyboard', name: 'Teclado de teste', kind: 'keyboard', connection: 'usb', vendor_id: null, product_id: null }];
+const daemon = { phase: 'connected', status: { protocol_version: 1, simulation: true, active_profile_id: 'default', focus_state: 'focused', revision: '1', recent_profiles: [], history_available: true } };
+function Fixture() {
+ const [config, setConfig] = React.useState(stored);
+ return React.createElement(WorkspaceTabs, {
+  home: active => React.createElement(HomePanel, { active, config, native: true, daemon, onConfigChange: setConfig, onSaved: () => {}, read, api }),
+  profiles: active => React.createElement(ProfilesPanel, { active, currentConfig: config, onConfigChange: setConfig, native: true, connected: true, onSaved: () => {}, api }),
+  devices: React.createElement(DevicesPanel, { config, onConfigChange: setConfig, api, native: true, connected: true, read }),
+ });
+}
+createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode, null, React.createElement(Fixture)));
+</script></body></html>

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Status events regression</title>
+<h1>Status events regression fixture</h1>
+<p>Synthetic events only. This page never connects to the daemon.</p>
+<p id="result">RUNNING</p>
+<script type="module">
+import { watchDaemon } from '../src/daemon-status.ts';
+const result = document.getElementById('result');
+let updates = 0;
+let cancelled = false;
+let emit;
+const stop = watchDaemon(async receive => {
+  emit = receive;
+  return () => { cancelled = true; };
+}, state => { if (state.phase === 'connected') updates++; });
+await Promise.resolve();
+await Promise.resolve();
+for (let revision = 1; revision <= 3; revision++) emit({ kind: 'status', status: {
+  protocol_version: 1, simulation: true, active_profile_id: revision === 2 ? 'konsole' : 'default',
+  focus_state: 'focused', revision: String(revision), recent_profiles: [], history_available: true,
+}});
+await Promise.resolve();
+await Promise.resolve();
+stop();
+emit({ kind: 'status', status: { revision: '4' } });
+result.textContent = updates === 3 && cancelled
+  ? 'PASS: 3 immediate event updates, clean cancellation, late event ignored'
+  : `FAIL: updates=${updates}, cancelled=${cancelled}`;
+</script></html>

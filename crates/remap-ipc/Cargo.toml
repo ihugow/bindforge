@@ -1,0 +1,20 @@
+[package]
+name = "remap-ipc"
+version.workspace = true
+edition.workspace = true
+rust-version = "1.87"
+license.workspace = true
+
+[dependencies]
+remap-core = { path = "../remap-core" }
+async-channel = { version = "2", optional = true }
+async-io = { version = "2", optional = true }
+futures-lite = { version = "2", optional = true }
+zbus = { version = "5.19", optional = true }
+
+[features]
+default = []
+dbus = ["dep:zbus", "dep:async-channel", "dep:async-io", "dep:futures-lite"]
+
+[lints]
+workspace = true
