@@ -156,6 +156,12 @@ o estado não é consultado periodicamente pela interface.
 Em **Início → Serviço do BindForge**, use **Iniciar serviço**, **Parar serviço**
 ou **Reiniciar serviço**. Não é necessário abrir um terminal. O serviço acompanha
 sua sessão gráfica e continua funcionando depois que a janela é fechada.
+O ícone do BindForge permanece na bandeja do sistema enquanto a interface estiver
+em execução, inclusive com a janela aberta. Fechar a janela apenas a oculta;
+use **Abrir BindForge** no menu do ícone para restaurá-la. O menu também oferece
+**Iniciar remapeamento**, com os mouses cadastrados para escolher, e **Pausar
+remapeamento**. **Sair da interface** encerra somente a interface e seu ícone,
+mantendo o daemon em execução. Para encerrar o daemon, use **Parar serviço**.
 Iniciar, reiniciar e retornar de bloqueio/suspensão mantêm a captura pausada até
 ativação explícita do mouse.
 

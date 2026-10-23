@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type { Config } from "./profiles";
 export type InputStatus = { active: boolean; device_id: string; message: string };
 export const inputApi = {
@@ -17,6 +18,15 @@ export function NativeInputPanel({ native, connected, simulation, config, focuse
   const [refresh, setRefresh] = useState(0);
   const mice = config?.devices?.filter(d => d.kind === "mouse") ?? [];
   const selectedId = mice.some(d => d.id === selected) ? selected : mice[0]?.id ?? "";
+  useEffect(() => {
+    if (!native || !isTauri()) return;
+    let cancelled = false;
+    const subscription = listen<InputStatus>("bindforge-input-status", event => {
+      if (!cancelled) setStatus(event.payload);
+    });
+    void subscription.catch(e => { if (!cancelled) setError(String(e)); });
+    return () => { cancelled = true; void subscription.then(stop => stop()).catch(() => {}); };
+  }, [native]);
   useEffect(() => {
     if (!native || !connected) { setStatus(null); return; }
     if (busy) return;

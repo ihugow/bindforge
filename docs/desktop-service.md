@@ -13,6 +13,22 @@ sessão gráfica o encerra por `PartOf=graphical-session.target`. Após falha,
 systemd tenta reiniciá-lo com limite de três tentativas em 30 segundos, sempre
 com entrada pausada.
 
+O ícone do BindForge aparece na inicialização da interface e permanece na bandeja
+com a janela aberta ou oculta. Fechar a janela apenas a oculta. No KDE, abra o menu
+do ícone e selecione **Abrir BindForge** para restaurar a mesma janela. **Sair da
+interface** encerra a interface e remove o ícone sem parar o daemon. **Parar serviço**
+continua sendo a ação para encerrar o serviço.
+
+O menu oferece **Iniciar remapeamento**, com um submenu dos mouses cadastrados,
+e **Pausar remapeamento**, habilitado quando a captura está ativa. Nenhuma dessas
+ações inicia ou para o serviço. Sem daemon ou sem cadastro válido, iniciar fica
+desabilitado. Os comandos usam o mesmo backend e as mesmas restrições de sessão,
+foco e acesso ao dispositivo da interface. Falhas aparecem na linha de estado do
+menu. A lista de cadastros e o estado de entrada são consultados a cada dois
+segundos em uma thread separada (Input1 ainda não oferece sinal de alteração),
+inclusive com a janela oculta. Alterações no estado são enviadas à interface por
+evento para manter o painel de remapeamento atualizado.
+
 ## Inicialização opcional
 
 A opção **Iniciar serviço ao entrar no KDE** habilita a unidade para
@@ -81,3 +97,14 @@ API em memória. Os registros finais ficam em [validation.md](validation.md).
 A instalação do RPM, a inicialização no próximo login e um reinício completo
 do computador ainda precisam ser confirmados na sessão real. A geração e inspeção
 do RPM não comprovam esses cenários.
+
+Para validar a bandeja em uma sessão KDE, confirme o ícone já com a janela aberta;
+feche a janela, selecione **Abrir BindForge** e confirme a restauração com o estado
+do editor preservado e o ícone ainda visível. Repita para verificar que não surgem
+ícones duplicados. Use **Iniciar remapeamento → nome do mouse** e depois **Pausar
+remapeamento**, confirmando o estado no menu e no painel da interface. Confira
+também cadastro adicionado/removido, daemon indisponível e falha de ativação;
+aguarde a atualização do menu. Por fim, use **Sair da interface** e confirme que o ícone some
+e que `systemctl --user status bindforge-daemon.service` mantém o serviço ativo,
+caso ele já estivesse em execução. Essa verificação visual ainda está pendente;
+`cargo check` e os testes do shell não exercitam o painel do KDE.

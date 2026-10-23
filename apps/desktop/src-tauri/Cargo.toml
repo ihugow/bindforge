@@ -9,7 +9,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 remap-config = { path = "../../../crates/remap-config" }
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 remap-core = { path = "../../../crates/remap-core" }
 

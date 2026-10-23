@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod system_tray;
 #[cfg(target_os = "linux")]
 mod kwin_integration;
 #[cfg(target_os = "linux")]
@@ -54,7 +55,7 @@ mod kwin_integration_status {
     pub struct Status {}
 }
 
-#[derive(serde::Serialize)]
+#[derive(Clone, serde::Serialize)]
 struct InputStatus { active: bool, device_id: String, message: String }
 #[cfg(target_os = "linux")]
 fn input_result(command: remap_ipc::dbus::InputCommand<'_>) -> Result<InputStatus, String> {
@@ -331,7 +332,11 @@ fn stop_window_capture(id: u32, window: tauri::WebviewWindow, state: tauri::Stat
 }
 
 fn main() {
-    let builder = tauri::Builder::default().manage(StatusWatches::default()).manage(WindowCaptures::default());
+    let builder = tauri::Builder::default().manage(StatusWatches::default()).manage(WindowCaptures::default())
+        .setup(|app| {
+            system_tray::setup(app.handle())?;
+            Ok(())
+        });
     #[cfg(target_os = "linux")]
     let builder = builder.on_page_load(|webview, payload| {
         use tauri::Manager;
@@ -339,11 +344,23 @@ fn main() {
             if let Ok(mut active) = webview.state::<StatusWatches>().active.lock() { active.clear(); }
             webview.state::<WindowCaptures>().cancel_all();
         }
-    }).on_window_event(|window, event| {
-        use tauri::Manager;
-        if matches!(event, tauri::WindowEvent::Destroyed) {
-            if let Ok(mut active) = window.state::<StatusWatches>().active.lock() { active.clear(); }
-            window.state::<WindowCaptures>().cancel_all();
+    });
+    let builder = builder.on_window_event(|window, event| {
+        if window.label() == "main" {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                match system_tray::hide_to_tray(window) {
+                    Ok(()) => api.prevent_close(),
+                    Err(error) => eprintln!("Não foi possível minimizar para a bandeja: {error}"),
+                }
+            }
+        }
+        #[cfg(target_os = "linux")]
+        {
+            use tauri::Manager;
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                if let Ok(mut active) = window.state::<StatusWatches>().active.lock() { active.clear(); }
+                window.state::<WindowCaptures>().cancel_all();
+            }
         }
     });
     builder.invoke_handler(tauri::generate_handler![get_daemon_service, control_daemon_service, get_input_status, start_mouse, pause_mouse, get_kwin_integration, configure_kwin_integration, start_window_capture, stop_window_capture, load_profiles, save_profiles, preview_profile, get_daemon_status, list_devices, start_daemon_status, stop_daemon_status])
