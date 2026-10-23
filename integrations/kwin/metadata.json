@@ -1,7 +1,7 @@
 {
   "KPlugin": {
-    "Id": "app-buttons-remap-focus",
-    "Name": "App Buttons Remap — Focus Prototype",
+    "Id": "bindforge-focus",
+    "Name": "BindForge — Focus Prototype",
     "Description": "Experimental app ID observer; no input remapping",
     "Version": "0.1.1",
     "License": "MIT"

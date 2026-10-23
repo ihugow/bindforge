@@ -26,7 +26,7 @@ separada do loop gráfico. Não recebe parâmetros de caminho de dispositivo/end
 O comando de terminal é independente do KDE e enumera como usuário comum:
 
 ```bash
-cargo run -p remap-daemon --features linux-devices -- --list-devices
+cargo run -p bindforge-daemon --features linux-devices -- --list-devices
 ```
 
 Para compilar no Fedora, são necessários libudev/pkg-config, normalmente fornecidos
@@ -68,8 +68,8 @@ de remapeamento, firmware, DPI ou RGB a partir de uma entrada aparecer na lista.
 
 ## Contrato D-Bus
 
-Serviço `org.appbuttons.Remap`, caminho `/org/appbuttons/Remap`, interface
-`org.appbuttons.Remap.Devices1`, método `GetDevices() -> (u, a(ssssii))`.
+Serviço `org.bindforge.Daemon`, caminho `/org/bindforge/Daemon`, interface
+`org.bindforge.Daemon.Devices1`, método `GetDevices() -> (u, a(ssssii))`.
 
 A versão é 1. Cada linha contém ID, nome, tipo, conexão, fabricante e produto.
 Tipos: mouse, keyboard, composite. Conexões: usb, bluetooth, internal, virtual, unknown.

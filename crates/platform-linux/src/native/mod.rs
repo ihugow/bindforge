@@ -114,7 +114,7 @@ impl InputRemapper for MouseSession {
 #[cfg(feature = "dbus")]
 pub struct MouseInterface(pub MouseSession);
 #[cfg(feature = "dbus")]
-#[zbus::interface(name = "org.appbuttons.Remap.Input1")]
+#[zbus::interface(name = "org.bindforge.Daemon.Input1")]
 impl MouseInterface {
     fn get_input_status(&self) -> (u32, bool, String, String) {
         let s = self.0.status(); (1, s.active, s.device_id, s.message)

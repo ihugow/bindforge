@@ -19,8 +19,8 @@ aguarda foco; eventos de foco acordam o monitor imediatamente, sem esperar esse 
 
 ## Contrato D-Bus
 
-Serviço `org.appbuttons.Remap`, caminho `/org/appbuttons/Remap`, interface
-`org.appbuttons.Remap.Status1`. Métodos e sinais são somente leitura de estado:
+Serviço `org.bindforge.Daemon`, caminho `/org/bindforge/Daemon`, interface
+`org.bindforge.Daemon.Status1`. Métodos e sinais são somente leitura de estado:
 
 | Nome | Tipo | Conteúdo |
 | --- | --- | --- |
@@ -120,7 +120,7 @@ publica o snapshot por StatusChanged. Recarregar regras sem mudar o perfil não
 cria uma entrada duplicada no histórico. O IPC de estado continua somente leitura.
 
 
-A captura explícita usa uma interface separada, `org.appbuttons.Remap.Capture1`,
+A captura explícita usa uma interface separada, `org.bindforge.Daemon.Capture1`,
 com resultado temporário de um único app ID. Não altera o formato dos snapshots de
 estado, nem acrescenta títulos/app IDs ao histórico. Consulte [profiles.md](profiles.md).
 

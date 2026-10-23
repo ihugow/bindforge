@@ -65,7 +65,7 @@ async fn owner(connection: &zbus::Connection) -> fdo::Result<Option<String>> {
 fn caller<'a>(header: &'a Header<'_>) -> fdo::Result<&'a str> {
     header.sender().map(|s| s.as_str()).ok_or_else(|| fdo::Error::AccessDenied("missing sender".into()))
 }
-#[zbus::interface(name = "org.appbuttons.Remap.Capture1")]
+#[zbus::interface(name = "org.bindforge.Daemon.Capture1")]
 impl CaptureInterface {
     async fn begin_capture(&self, #[zbus(header)] header: Header<'_>, #[zbus(connection)] connection: &zbus::Connection) -> fdo::Result<u64> {
         let kwin = owner(connection).await?.ok_or_else(|| fdo::Error::Failed("KDE indisponível. Ative a ponte de foco do KWin.".into()))?;

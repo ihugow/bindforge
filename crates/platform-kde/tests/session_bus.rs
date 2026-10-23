@@ -11,7 +11,8 @@ struct PrivateBus { process: Child, address: String, runtime_dir: std::path::Pat
 impl PrivateBus {
     fn start() -> Self {
         // Never own org.kde.KWin on the user's real session bus.
-        let runtime_dir = std::env::temp_dir().join(format!("app-buttons-remap-dbus-test-{}", std::process::id()));
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let runtime_dir = std::env::temp_dir().join(format!("bindforge-dbus-test-{}-{}", std::process::id(), NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
         std::fs::create_dir(&runtime_dir).unwrap();
         let mut process = Command::new("dbus-daemon")
             .env("XDG_RUNTIME_DIR", &runtime_dir)
@@ -46,6 +47,19 @@ fn focused(id: &str) -> Option<WindowEvent> {
 }
 
 #[test]
+fn refuses_to_start_beside_a_daemon_from_the_previous_brand() {
+    let bus = PrivateBus::start();
+    let previous = Builder::address(bus.address.as_str()).unwrap()
+        .name(remap_ipc::dbus::LEGACY_SERVICE).unwrap().build().unwrap();
+    let error = match KdeWindowMonitor::at_address(&bus.address) {
+        Ok(_) => panic!("must not start beside the previous daemon"), Err(error) => error,
+    };
+    assert!(error.contains("versão anterior"));
+    drop(previous);
+    assert!(KdeWindowMonitor::at_address(&bus.address).is_ok());
+}
+
+#[test]
 fn authenticates_and_recovers_across_compositor_owner_changes() {
     let bus = PrivateBus::start();
     let mut monitor = KdeWindowMonitor::at_address(&bus.address).unwrap();
@@ -69,19 +83,19 @@ fn authenticates_and_recovers_across_compositor_owner_changes() {
     send(&kwin, "firefox", "").unwrap();
     assert_eq!(monitor.next_event().unwrap(), focused("firefox"));
     // Explicit capture ignores stale/current focus and keeps only the first new app.
-    send(&kwin, "remap-desktop", "").unwrap();
-    assert_eq!(monitor.next_event().unwrap(), focused("remap-desktop"));
+    send(&kwin, "bindforge-desktop", "").unwrap();
+    assert_eq!(monitor.next_event().unwrap(), focused("bindforge-desktop"));
     let capture = remap_ipc::dbus::WindowCapture::at_address(&bus.address).unwrap();
     assert!(capture.poll().unwrap().is_none());
-    send(&kwin, "remap-desktop", "").unwrap();
+    send(&kwin, "bindforge-desktop", "").unwrap();
     assert!(send(&impostor, "spoofed", "").is_err());
     send(&kwin, "", "").unwrap();
     assert!(capture.poll().unwrap().is_none());
     send(&kwin, "firefox", "").unwrap();
     assert_eq!(capture.poll().unwrap().as_deref(), Some("firefox"));
-    send(&kwin, "remap-desktop", "").unwrap();
+    send(&kwin, "bindforge-desktop", "").unwrap();
     assert_eq!(capture.poll().unwrap().as_deref(), Some("firefox"));
-    assert_eq!(monitor.next_event().unwrap(), focused("remap-desktop"));
+    assert_eq!(monitor.next_event().unwrap(), focused("bindforge-desktop"));
     drop(capture);
     // Dropping the client cancels its request and permits immediate rearming.
     drop(remap_ipc::dbus::WindowCapture::at_address(&bus.address).unwrap());

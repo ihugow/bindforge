@@ -8,8 +8,8 @@ StartLimitBurst=3
 
 [Service]
 Type=dbus
-BusName=org.appbuttons.Remap
-ExecStart=/usr/libexec/bindforge/remap-daemon --kde
+BusName=org.bindforge.Daemon
+ExecStart=/usr/libexec/bindforge/bindforge-daemon --kde
 Restart=on-failure
 RestartSec=2
 TimeoutStartSec=15

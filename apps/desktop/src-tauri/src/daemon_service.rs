@@ -4,7 +4,7 @@ use zbus::{blocking::{Connection, Proxy, connection::Builder}, zvariant::OwnedOb
 
 const UNIT: &str = "bindforge-daemon.service";
 const TEMPLATE: &str = include_str!("../../../../integrations/systemd/bindforge-daemon.service");
-const PACKAGED_BINARY: &str = "/usr/libexec/bindforge/remap-daemon";
+const PACKAGED_BINARY: &str = "/usr/libexec/bindforge/bindforge-daemon";
 
 #[derive(serde::Serialize, Debug)]
 pub struct ServiceStatus {
@@ -32,14 +32,20 @@ fn daemon_pid(connection: &Connection) -> Result<Option<u32>, String> {
     let bus = zbus::blocking::fdo::DBusProxy::new(connection).map_err(error)?;
     match bus.get_connection_unix_process_id(remap_ipc::dbus::SERVICE.try_into().expect("valid name")) {
         Ok(pid) => Ok(Some(pid)),
-        Err(zbus::fdo::Error::NameHasNoOwner(_)) | Err(zbus::fdo::Error::ServiceUnknown(_)) => Ok(None),
+        Err(zbus::fdo::Error::NameHasNoOwner(_)) | Err(zbus::fdo::Error::ServiceUnknown(_)) => {
+            match bus.get_connection_unix_process_id(remap_ipc::dbus::LEGACY_SERVICE.try_into().expect("valid name")) {
+                Ok(pid) => Ok(Some(pid)),
+                Err(zbus::fdo::Error::NameHasNoOwner(_)) | Err(zbus::fdo::Error::ServiceUnknown(_)) => Ok(None),
+                Err(e) => Err(error(e)),
+            }
+        }
         Err(e) => Err(error(e)),
     }
 }
 fn binary() -> PathBuf {
     if cfg!(debug_assertions) {
-        // cargo build -p remap-daemon --features kde-dbus
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../target/debug/remap-daemon")
+        // cargo build -p bindforge-daemon --features kde-dbus
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../target/debug/bindforge-daemon")
     } else { PathBuf::from(PACKAGED_BINARY) }
 }
 fn executable(path: &Path) -> bool {
@@ -88,7 +94,7 @@ fn render_unit(binary: &Path) -> Result<String, String> {
     Ok(TEMPLATE.replace(PACKAGED_BINARY, &format!("\"{escaped}\"")))
 }
 fn install(connection: &Connection, root: &Path, binary: &Path) -> Result<(), String> {
-    if !executable(binary) { return Err("Executável do daemon não encontrado. Instale o pacote completo ou compile remap-daemon com a feature kde-dbus.".into()); }
+    if !executable(binary) { return Err("Executável do daemon não encontrado. Instale o pacote completo ou compile bindforge-daemon com a feature kde-dbus.".into()); }
     let rendered = render_unit(binary)?;
     std::fs::create_dir_all(root).map_err(error)?;
     let path = root.join(UNIT);
@@ -267,6 +273,10 @@ mod tests {
         }
         assert_eq!(state.lock().unwrap().calls, calls);
         drop(external);
+        let previous = Builder::address(address.trim()).unwrap().name(remap_ipc::dbus::LEGACY_SERVICE).unwrap().build().unwrap();
+        assert!(snapshot(&client, binary).unwrap().external);
+        assert!(control_at(&client, &root, binary, ServiceAction::Start).unwrap_err().contains("fora do aplicativo"));
+        drop(previous);
         std::fs::write(root.join(UNIT), "custom configuration").unwrap();
         assert!(control_at(&client, &root, binary, ServiceAction::Start).unwrap_err().contains("personalizada"));
         assert_eq!(std::fs::read_to_string(root.join(UNIT)).unwrap(), "custom configuration");

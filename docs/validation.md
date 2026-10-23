@@ -14,7 +14,7 @@ Windows/macOS não foram compilados/testados.
 | `cargo check --workspace --all-targets --all-features --locked --offline` | Passou |
 | `node --test integrations/kwin/tests/focus.test.cjs` | 1 teste passou: foco inicial, troca e ausência de foco, sem títulos |
 | `npm run build` em apps/desktop | TypeScript e Vite passaram após atualização dos textos de status |
-| `remap-daemon --help` | Opção `--kde` documentada; exige a feature opcional |
+| `bindforge-daemon --help` | Opção `--kde` documentada; exige a feature opcional |
 
 Os testes Rust usaram um cache Cargo temporário em `/tmp/remap-cargo-home`.
 O teste de integração cria seu próprio `dbus-daemon` e clientes simulados: não usa
@@ -403,10 +403,10 @@ Validação:
 - Frontend: 24 testes passaram; build TypeScript/Vite e cargo check Tauri passaram.
   Fixture `tests/native-input-browser.html` valida ativar/pausar e bloquear troca de
   seleção enquanto ativa, usando exclusivamente API em memória.
-- Teste opt-in real: `cargo run -p remap-daemon --features kde-dbus --offline -- --native-self-test`.
+- Teste opt-in real: `cargo run -p bindforge-daemon --features kde-dbus --offline -- --native-self-test`.
   Criou uma fixture uinput e aguardou udev, mas RawDevice::open no novo event29
   retornou EACCES. Parou antes do primeiro evento, a fixture foi destruída e a
-  verificação sysfs confirmou ausência de App Buttons Remap Test remanescentes.
+  verificação sysfs confirmou ausência de BindForge Test remanescentes.
   Não foram concedidas permissões, modificadas ACLs/regras/grupos ou capturados
   periféricos físicos. O teste completo no kernel e a validação física estão pendentes.
 - O harness só emite depois de capturar entrada e saída virtuais exclusivamente,
@@ -520,3 +520,26 @@ O RPM foi construído e inspecionado, sem instalação ou habilitação automát
 Instalação pelo gerenciador de pacotes, início real do serviço pela UI e login/reboot
 com inicialização habilitada continuam exigindo validação na sessão do usuário.
 O daemon existente e a captura do mouse não foram alterados por esta rodada.
+
+## Renomeação para BindForge
+
+A interface, títulos, fixtures visuais, licença, documentação, pacotes npm/Cargo,
+executáveis, launcher, identidade Tauri, D-Bus e ponte KWin usam BindForge.
+O daemon agora fica em `crates/bindforge-daemon`, com executável
+`bindforge-daemon`; a interface é `bindforge-desktop`. O RPM passa a se chamar
+BindForge e declara substituição do pacote anterior da versão 0.1.0.
+
+O caminho padrão de perfis passa a ser `bindforge/profiles.json`. A migração
+valida e copia a configuração anterior, preservando revisão, cadastros, ações e
+arquivo original. A publicação é atômica e não substitui um destino existente.
+`BINDFORGE_CONFIG` é a variável atual; a variável anterior continua como fallback.
+Identificadores antigos permanecem somente em código de compatibilidade e testes:
+leitura da configuração anterior, detecção do daemon anterior, exclusão de saídas
+virtuais anteriores e limpeza da ponte antiga.
+
+Validação: 66 testes do workspace Rust, 2 do shell, 26 do frontend e 1 da ponte
+JavaScript aprovados. Os testes novos cobrem preservação/migração de perfis e
+recusa de iniciar ao lado do daemon anterior, usando somente arquivos e D-Bus
+isolados. TypeScript/Vite, shell Tauri e RPM release compilados. A sessão real e o
+daemon anterior não foram interrompidos. Interface e daemon devem ser atualizados
+juntos para usar o novo protocolo D-Bus.

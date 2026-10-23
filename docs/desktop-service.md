@@ -26,13 +26,13 @@ Ela só substitui um arquivo regular com o marcador `# Managed by BindForge`;
 arquivos personalizados e links são recusados. A gravação usa arquivo temporário
 e rename. Caminhos ExecStart têm aspas e escapes de systemd, sem shell.
 
-Em desenvolvimento, o executável é `target/debug/remap-daemon` no checkout:
+Em desenvolvimento, o executável é `target/debug/bindforge-daemon` no checkout:
 
 ```bash
-cargo build -p remap-daemon --features kde-dbus --locked
+cargo build -p bindforge-daemon --features kde-dbus --locked
 ```
 
-O build de produção usa exclusivamente `/usr/libexec/bindforge/remap-daemon`.
+O build de produção usa exclusivamente `/usr/libexec/bindforge/bindforge-daemon`.
 Assim, passar do desenvolvimento ao RPM e iniciar pelo app atualiza a unidade
 gerenciada para o executável instalado. Nenhum executável é procurado no PATH.
 
@@ -53,10 +53,10 @@ e `/dev/uinput` do backend existente.
 Instale o RPM pelo gerenciador gráfico ou, na raiz do repositório:
 
 ```bash
-sudo dnf install './target/release/bundle/rpm/App Buttons Remap-0.1.0-1.x86_64.rpm'
+sudo dnf install './target/release/bundle/rpm/BindForge-0.1.0-1.x86_64.rpm'
 ```
 
-Abra **App Buttons Remap** no menu, inicie o serviço e ative o mouse desejado.
+Abra **BindForge** no menu, inicie o serviço e ative o mouse desejado.
 Se já houver um daemon manual, encerre-o primeiro no terminal de origem.
 
 Para diagnóstico adicional, sem alterar o serviço:

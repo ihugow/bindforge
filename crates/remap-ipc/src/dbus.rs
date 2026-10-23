@@ -13,15 +13,17 @@ use std::time::Duration;
 use zbus::blocking::{connection::Builder, Connection, Proxy};
 use crate::{DaemonStatus, FocusState, StatusStore, ProfileChange, HISTORY_LIMIT, PROTOCOL_VERSION};
 
-pub const SERVICE: &str = "org.appbuttons.Remap";
-pub const PATH: &str = "/org/appbuttons/Remap";
-pub const STATUS_INTERFACE: &str = "org.appbuttons.Remap.Status1";
+pub const SERVICE: &str = "org.bindforge.Daemon";
+/// Compatibility detection only; new clients never write to the former service.
+pub const LEGACY_SERVICE: &str = "org.appbuttons.Remap";
+pub const PATH: &str = "/org/bindforge/Daemon";
+pub const STATUS_INTERFACE: &str = "org.bindforge.Daemon.Status1";
 // Fixed wire layout, no serde dependency in the platform-neutral contract.
 type WireStatus = (u32, bool, String, String, u64);
 type WireHistory = (u32, bool, String, String, u64, Vec<(u64, String)>);
 
 pub struct StatusInterface(pub StatusStore);
-#[zbus::interface(name = "org.appbuttons.Remap.Status1")]
+#[zbus::interface(name = "org.bindforge.Daemon.Status1")]
 impl StatusInterface {
     #[zbus(out_args("protocol_version", "simulation", "active_profile_id", "focus_state", "revision"))]
     fn get_status(&self) -> WireStatus {
@@ -104,7 +106,7 @@ fn read(connection: Connection) -> Result<DaemonStatus, String> {
     // Pin the name owner: a restart must not combine data from different daemons.
     let bus = zbus::blocking::fdo::DBusProxy::new(&connection).map_err(|e| e.to_string())?;
     let owner = bus.get_name_owner(SERVICE.try_into().expect("valid service name"))
-        .map_err(|_| "Daemon unavailable; start remap-daemon with --kde".to_string())?;
+        .map_err(|_| "Daemon unavailable; start bindforge-daemon with --kde".to_string())?;
     let proxy = Proxy::new(&connection, owner.as_str(), PATH, STATUS_INTERFACE).map_err(|e| e.to_string())?;
     // Do not auto-start any service when the daemon is absent.
     match proxy.call::<_, _, WireHistory>("GetStatusWithHistory", &()) {

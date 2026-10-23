@@ -2,7 +2,7 @@
 use std::{sync::{Arc, Mutex}, time::{Duration, Instant}};
 use zbus::blocking::{connection::Builder, Connection, Proxy};
 use super::{SERVICE, PATH};
-pub const INTEGRATION_INTERFACE: &str = "org.appbuttons.Remap.Integration1";
+pub const INTEGRATION_INTERFACE: &str = "org.bindforge.Daemon.Integration1";
 pub type WireIntegration = (u32, bool, bool, bool, bool, String, u64);
 #[derive(Clone, Debug, Default)]
 pub struct BridgeStatus {
@@ -24,7 +24,7 @@ impl BridgeStore {
     }
 }
 pub struct IntegrationInterface(pub BridgeStore);
-#[zbus::interface(name = "org.appbuttons.Remap.Integration1")]
+#[zbus::interface(name = "org.bindforge.Daemon.Integration1")]
 impl IntegrationInterface {
     fn get_integration(&self) -> WireIntegration {
         let s = self.0.snapshot(); (1, s.kwin_available, s.loaded, s.focus_received, s.legacy_disabled, s.message, s.completed)

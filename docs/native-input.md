@@ -72,7 +72,7 @@ não altera ACLs/grupos e não executa o daemon como root.
 
 ## IPC e indicação de modo
 
-`org.appbuttons.Remap.Input1` no caminho `/org/appbuttons/Remap`:
+`org.bindforge.Daemon.Input1` no caminho `/org/bindforge/Daemon`:
 
 - `GetInputStatus() -> (u, b, s, s)`: versão 1, ativo, ID cadastrado e mensagem.
 - `StartMouse(s) -> ()`: somente um cadastro de mouse conhecido pelo daemon.
@@ -87,10 +87,10 @@ esses eventos para renovar o estado de entrada, sem polling contínuo.
 ## Teste virtual isolado
 
 ```bash
-cargo run -p remap-daemon --features kde-dbus -- --native-self-test
+cargo run -p bindforge-daemon --features kde-dbus -- --native-self-test
 ```
 
-Cria somente duas fixtures uinput com nomes App Buttons Remap Test Input/Output.
+Cria somente duas fixtures uinput com nomes BindForge Test Input/Output.
 Antes de emitir qualquer evento, o teste captura **ambos** os nós com exclusividade:
 o motor recebe só a entrada de teste e um leitor de teste recebe só a saída. Leitores
 observadores verificam que nenhum evento chegou a outros clientes. A exclusividade

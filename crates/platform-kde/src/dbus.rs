@@ -13,7 +13,7 @@ use crate::KwinFocus;
 
 pub use remap_ipc::dbus::{SERVICE, PATH};
 use remap_ipc::{StatusStore, dbus::StatusInterface};
-pub const INTERFACE: &str = "org.appbuttons.Remap.Focus1";
+pub const INTERFACE: &str = "org.bindforge.Daemon.Focus1";
 const KWIN: &str = "org.kde.KWin";
 const MAX_FIELD_BYTES: usize = 4096;
 const HEALTH_INTERVAL: Duration = Duration::from_millis(500);
@@ -53,7 +53,7 @@ struct FocusReceiver {
     bridge: remap_ipc::dbus::BridgeStore,
 }
 
-#[zbus::interface(name = "org.appbuttons.Remap.Focus1")]
+#[zbus::interface(name = "org.bindforge.Daemon.Focus1")]
 impl FocusReceiver {
     async fn focus_changed(
         &self,
@@ -145,6 +145,10 @@ impl KdeWindowMonitor {
             .serve_at(PATH, platform_linux::native::MouseInterface(input)).map_err(|e| e.to_string())?
             .serve_at(PATH, receiver).map_err(|e| e.to_string())?
             .build().map_err(|e| e.to_string())?;
+        let bus = zbus::blocking::fdo::DBusProxy::new(&connection).map_err(|e| e.to_string())?;
+        if bus.name_has_owner(remap_ipc::dbus::LEGACY_SERVICE.try_into().expect("valid name")).map_err(|e| e.to_string())? {
+            return Err("Uma versão anterior do BindForge está em execução. Encerre-a antes de iniciar a nova versão.".into());
+        }
         // zbus 5.19's builder does not check the RequestName reply for us.
         let claimed = connection.request_name_with_flags(SERVICE, fdo::RequestNameFlags::DoNotQueue.into());
         if !matches!(claimed, Ok(fdo::RequestNameReply::PrimaryOwner | fdo::RequestNameReply::AlreadyOwner)) {

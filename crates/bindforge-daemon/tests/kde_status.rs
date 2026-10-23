@@ -7,7 +7,7 @@ use remap_ipc::dbus::{read_status_at, SERVICE, PATH, STATUS_INTERFACE};
 use zbus::blocking::{connection::Builder, Proxy};
 
 struct LegacyStatus;
-#[zbus::interface(name = "org.appbuttons.Remap.Status1")]
+#[zbus::interface(name = "org.bindforge.Daemon.Status1")]
 impl LegacyStatus {
     fn get_status(&self) -> (u32, bool, String, String, u64) {
         (1, true, "default".into(), "waiting".into(), 1)
@@ -60,8 +60,8 @@ fn daemon_publishes_consumed_profiles_and_read_only_client_detects_disconnect() 
     assert!(!address.is_empty());
     let kwin = Builder::address(address).unwrap().name("org.kde.KWin").unwrap().build().unwrap();
     let config_path = runtime_dir.join("profiles.json");
-    let mut daemon = ChildGuard(Command::new(env!("CARGO_BIN_EXE_remap-daemon"))
-        .arg("--kde").env("DBUS_SESSION_BUS_ADDRESS", address).env("DBUS_SYSTEM_BUS_ADDRESS", address).env("APP_BUTTONS_CONFIG", &config_path)
+    let mut daemon = ChildGuard(Command::new(env!("CARGO_BIN_EXE_bindforge-daemon"))
+        .arg("--kde").env("DBUS_SESSION_BUS_ADDRESS", address).env("DBUS_SYSTEM_BUS_ADDRESS", address).env("BINDFORGE_CONFIG", &config_path)
         .stdout(Stdio::null()).stderr(Stdio::null()).spawn().unwrap());
     let initial = wait_for(address, |s| s.active_profile_id.as_deref() == Some("default"));
     assert!(initial.simulation);
@@ -96,7 +96,7 @@ fn daemon_publishes_consumed_profiles_and_read_only_client_detects_disconnect() 
     spoof.active_profile_id = Some("spoofed".into());
     remap_ipc::dbus::emit_status_changed(&kwin, &spoof).unwrap();
     assert!(events.recv_timeout(Duration::from_millis(100)).is_err());
-    let focus = Proxy::new(&kwin, SERVICE, PATH, "org.appbuttons.Remap.Focus1").unwrap();
+    let focus = Proxy::new(&kwin, SERVICE, PATH, "org.bindforge.Daemon.Focus1").unwrap();
     let capture = remap_ipc::dbus::WindowCapture::at_address(address).unwrap();
     assert!(capture.poll().unwrap().is_none());
     focus.call::<_, _, ()>("FocusChanged", &("firefox", "")).unwrap();
@@ -170,8 +170,8 @@ fn daemon_publishes_consumed_profiles_and_read_only_client_detects_disconnect() 
     assert!(remap_ipc::dbus::WindowCapture::at_address(address).err().unwrap().contains("Reinicie o daemon"));
     next_unavailable(&events, true);
     legacy.close().unwrap();
-    let restarted = ChildGuard(Command::new(env!("CARGO_BIN_EXE_remap-daemon"))
-        .arg("--kde").env("DBUS_SESSION_BUS_ADDRESS", address).env("DBUS_SYSTEM_BUS_ADDRESS", address).env("APP_BUTTONS_CONFIG", &config_path)
+    let restarted = ChildGuard(Command::new(env!("CARGO_BIN_EXE_bindforge-daemon"))
+        .arg("--kde").env("DBUS_SESSION_BUS_ADDRESS", address).env("DBUS_SYSTEM_BUS_ADDRESS", address).env("BINDFORGE_CONFIG", &config_path)
         .stdout(Stdio::null()).stderr(Stdio::null()).spawn().unwrap());
     let fresh = wait_for(address, |s| s.focus_state == FocusState::Waiting && s.active_profile_id.is_some());
     assert_eq!(fresh.active_profile_id.as_deref(), Some("default"));

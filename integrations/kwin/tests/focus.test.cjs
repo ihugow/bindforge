@@ -17,8 +17,8 @@ test('publishes initial focus, changes and no-focus using the D-Bus contract', (
   onFocus({ resourceClass: 'org.kde.konsole', pid: -1 });
   onFocus(null);
   assert.deepEqual(calls, [
-    ['org.appbuttons.Remap', '/org/appbuttons/Remap', 'org.appbuttons.Remap.Focus1', 'FocusChangedWithProcess', 'firefox', 'Firefox', '123'],
-    ['org.appbuttons.Remap', '/org/appbuttons/Remap', 'org.appbuttons.Remap.Focus1', 'FocusChangedWithProcess', '', 'org.kde.konsole', '0'],
-    ['org.appbuttons.Remap', '/org/appbuttons/Remap', 'org.appbuttons.Remap.Focus1', 'FocusChangedWithProcess', '', '', '0'],
+    ['org.bindforge.Daemon', '/org/bindforge/Daemon', 'org.bindforge.Daemon.Focus1', 'FocusChangedWithProcess', 'firefox', 'Firefox', '123'],
+    ['org.bindforge.Daemon', '/org/bindforge/Daemon', 'org.bindforge.Daemon.Focus1', 'FocusChangedWithProcess', '', 'org.kde.konsole', '0'],
+    ['org.bindforge.Daemon', '/org/bindforge/Daemon', 'org.bindforge.Daemon.Focus1', 'FocusChangedWithProcess', '', '', '0'],
   ]);
 });

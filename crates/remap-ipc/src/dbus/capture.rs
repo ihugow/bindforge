@@ -2,7 +2,7 @@
 use std::time::Duration;
 use zbus::blocking::{connection::Builder, Connection, Proxy};
 use super::{SERVICE, PATH};
-const INTERFACE: &str = "org.appbuttons.Remap.Capture1";
+const INTERFACE: &str = "org.bindforge.Daemon.Capture1";
 
 pub struct WindowCapture { connection: Connection, owner: String, id: u64 }
 impl WindowCapture {

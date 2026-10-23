@@ -8,9 +8,9 @@ sempre usando `DryRunRemapper`. Não lê `/dev/input` nem injeta eventos.
 
 O serviço é registrado **no bus de sessão**, com:
 
-- Nome: `org.appbuttons.Remap`
-- Caminho: `/org/appbuttons/Remap`
-- Interface: `org.appbuttons.Remap.Focus1`
+- Nome: `org.bindforge.Daemon`
+- Caminho: `/org/bindforge/Daemon`
+- Interface: `org.bindforge.Daemon.Focus1`
 - Método atual: `FocusChangedWithProcess(desktop_file_name: s, resource_class: s, process_id: s) -> ()`.
   O PID é decimal, transitório e não é persistido. A string evita conversões ambíguas
   de números JavaScript no D-Bus. O método legado `FocusChanged(s, s)` continua aceito,
@@ -48,7 +48,7 @@ classe e não se coleta título.
 ## Ponte temporária gerenciada pelo daemon
 
 ```bash
-cargo run -p remap-daemon --features kde-dbus -- --kde
+cargo run -p bindforge-daemon --features kde-dbus -- --kde
 ```
 
 O receptor adquire o nome exclusivo antes de criar arquivos ou carregar scripts.
@@ -57,7 +57,7 @@ No primeiro ciclo, `BridgeRuntime` usa `/Scripting.loadScript` e chama `run` no
 não há pacote, download ou necessidade do checkout em execução. O script publica
 um snapshot inicial e as próximas ativações de janela.
 
-O nome reservado é `app-buttons-remap-runtime`. O arquivo fica em uma pasta 0700
+O nome reservado é `bindforge-runtime`. O arquivo fica em uma pasta 0700
 sob XDG_RUNTIME_DIR absoluto, ou no diretório temporário, identificada pelo UID.
 A pasta existente precisa ser um diretório real, do usuário atual, sem acesso a
 outros usuários. O arquivo é escrito em 0600 e renomeado, substituindo uma fonte
@@ -79,9 +79,10 @@ reservado e substitui sua fonte. Não se promete limpeza imediata após SIGKILL.
 
 ## Migração da ponte persistente anterior
 
-Antes de carregar a ponte runtime, o daemon verifica `app-buttons-remap-focus`.
+Antes de carregar a ponte runtime, o daemon verifica o script persistente da
+versão anterior.
 Se o pacote local existir ou o plugin estiver carregado, lê sua chave com
-kreadconfig6 e grava somente `Plugins/app-buttons-remap-focusEnabled=false` com
+kreadconfig6 e desabilita somente a chave de ativação desse script com
 kwriteconfig6 se necessário. Confirma a gravação e descarrega esse plugin. O pacote
 instalado é preservado, assim como outras opções e scripts. Uma falha impede a carga
 duplicada e aparece no diagnóstico, com possibilidade de nova tentativa.
@@ -95,7 +96,7 @@ usuário também é gravada como false; não é necessário remover arquivos do 
 ## Diagnóstico no aplicativo nativo
 
 Em **Início → Ver integração com KDE**, o app consulta o daemon por
-`org.appbuttons.Remap.Integration1` no mesmo caminho do serviço. A resposta de
+`org.bindforge.Daemon.Integration1` no mesmo caminho do serviço. A resposta de
 `GetIntegration` é `(u, b, b, b, b, s, t)`: versão 1, KWin disponível, ponte carregada,
 foco recebido desde a última carga, migração registrada, mensagem e número de
 reconexão concluída. Nenhum ID/título de janela ou caminho temporário é exposto.
@@ -116,7 +117,7 @@ a UI mantém a ponte ativa enquanto o daemon estiver em execução.
 ## Smoke test da sessão real
 
 ```bash
-cargo build -p remap-daemon --features kde-dbus --locked
+cargo build -p bindforge-daemon --features kde-dbus --locked
 python3 tools/test-kde-session.py
 ```
 

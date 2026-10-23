@@ -54,7 +54,7 @@ function App() {
   }
   return <main>
     <header><span className="eyebrow">FEDORA KDE · EM DESENVOLVIMENTO</span>
-      <h1>App Buttons Remap</h1><p>Seus dispositivos. Um perfil para cada aplicativo.</p></header>
+      <h1>BindForge</h1><p>Seus dispositivos. Um perfil para cada aplicativo.</p></header>
     <aside><strong>{simulation ? "Remapeamento pausado" : "Remapeamento físico ativo"}</strong><p>{simulation ? "A seleção de perfis continua sendo acompanhada. Ative um mouse cadastrado para executar suas ações." : "O daemon está remapeando o mouse selecionado conforme a janela em foco. Use Pausar remapeamento para restaurar o funcionamento original."}</p></aside>
     <WorkspaceTabs home={visible => <>
       <HomePanel config={config} native={native} daemon={daemon} active={visible} onConfigChange={setConfig} onSaved={() => setSelection(null)} read={readDevices} />

@@ -4,7 +4,7 @@ use remap_ipc::dbus::{encode_devices, WireDevices};
 use crate::LinuxDeviceEnumerator;
 
 pub struct DevicesInterface;
-#[zbus::interface(name = "org.appbuttons.Remap.Devices1")]
+#[zbus::interface(name = "org.bindforge.Daemon.Devices1")]
 impl DevicesInterface {
     #[zbus(out_args("protocol_version", "batteries"))]
     async fn get_device_batteries(&self) -> zbus::fdo::Result<(u32, Vec<(String, i32, String)>)> {

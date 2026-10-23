@@ -49,12 +49,14 @@ integralmente ao editar nome, prioridade e ativação; suas associações ficam 
 
 ## Armazenamento
 
-- Linux: `$XDG_CONFIG_HOME/app-buttons-remap/profiles.json`, com fallback para
-  `$HOME/.config/app-buttons-remap/profiles.json`. XDG relativo é ignorado.
+- Linux: `$XDG_CONFIG_HOME/bindforge/profiles.json`, com fallback para
+  `$HOME/.config/bindforge/profiles.json`. XDG relativo é ignorado.
 - Caminhos convencionais de configuração por usuário estão previstos em Windows
   e macOS; a integração do daemon permanece exclusiva do KDE Linux e estes alvos
   não foram validados.
-- `APP_BUTTONS_CONFIG` substitui o caminho nos dois processos, para testes ou
+- A primeira execução migra os perfis da pasta anterior para `bindforge`,
+  preservando o arquivo original e a revisão. Um destino existente nunca é sobrescrito.
+- `BINDFORGE_CONFIG` substitui o caminho nos dois processos, para testes ou
   diagnóstico. Defina o mesmo valor para UI e daemon.
 
 O salvamento valida antes de escrever, usa um lock exclusivo, verifica a revisão
@@ -99,7 +101,7 @@ e edição com armazenamento somente em memória, sem tocar nos perfis do usuár
 
 ## Captura temporária de aplicativo
 
-A interface D-Bus `org.appbuttons.Remap.Capture1` oferece `BeginCapture → t`,
+A interface D-Bus `org.bindforge.Daemon.Capture1` oferece `BeginCapture → t`,
 `ReadCapture(t) → (s, s)` e `CancelCapture(t)`. O resultado é `waiting` com ID vazio
 ou `captured` com o ID identificado. Existe uma única captura ativa no daemon,
 associada ao remetente único que a iniciou e ao dono atual de KWin. Outro cliente
@@ -202,3 +204,5 @@ configuração após salvamentos, evitando revisões locais divergentes. A prév
 por app ID fica em Perfis; atividade do daemon e histórico ficam em Início.
 A tela de dispositivos mantém sua atualização manual. O teclado tem ilustração e
 um modal informativo; a edição visual de teclas ainda não foi implementada.
+
+A variável de ambiente anterior continua aceita como fallback de compatibilidade.

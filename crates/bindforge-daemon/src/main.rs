@@ -180,7 +180,7 @@ fn run() -> Result<(), String> {
         }
         [flag] if flag == "--kde" => Err("KDE support requires Linux and --features kde-dbus".into()),
         [flag] if flag == "--help" || flag == "-h" => {
-            println!("remap-daemon [--stdin | --kde [--once] | --list-devices | --native-self-test]\nDefault: finite demo. --stdin: one exact app ID per line; blank line clears focus.\nDefault and --stdin simulate only. --kde: live focus bridge with the native mouse backend initially PAUSED; activate a saved mouse explicitly in the app. --native-self-test: exclusively isolated virtual fixtures, no physical mouse. EOF resets and exits. --once exits after the first authenticated focus event (no timeout)."); Ok(())
+            println!("bindforge-daemon [--stdin | --kde [--once] | --list-devices | --native-self-test]\nDefault: finite demo. --stdin: one exact app ID per line; blank line clears focus.\nDefault and --stdin simulate only. --kde: live focus bridge with the native mouse backend initially PAUSED; activate a saved mouse explicitly in the app. --native-self-test: exclusively isolated virtual fixtures, no physical mouse. EOF resets and exits. --once exits after the first authenticated focus event (no timeout)."); Ok(())
         }
         _ => Err("unknown arguments; use --help".into()),
     }

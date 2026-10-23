@@ -1,5 +1,5 @@
 [package]
-name = "remap-daemon"
+name = "bindforge-daemon"
 version.workspace = true
 edition.workspace = true
 rust-version = "1.87"

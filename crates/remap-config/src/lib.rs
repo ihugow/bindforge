@@ -76,7 +76,7 @@ impl Config {
 /// Linux uses XDG. Other targets have their conventional per-user config roots.
 /// An explicit override is also useful for isolated tests; the UI cannot supply a path.
 pub fn config_path() -> Result<PathBuf, String> {
-    if let Some(path) = std::env::var_os("APP_BUTTONS_CONFIG") { return Ok(PathBuf::from(path)); }
+    if let Some(path) = std::env::var_os("BINDFORGE_CONFIG").or_else(|| std::env::var_os("APP_BUTTONS_CONFIG")) { return Ok(PathBuf::from(path)); }
     let base = if cfg!(target_os = "windows") {
         std::env::var_os("APPDATA").map(PathBuf::from)
     } else if cfg!(target_os = "macos") {
@@ -85,7 +85,31 @@ pub fn config_path() -> Result<PathBuf, String> {
         std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).filter(|p| p.is_absolute())
             .or_else(|| std::env::var_os("HOME").map(|p| PathBuf::from(p).join(".config")))
     }.ok_or("Não foi possível localizar a pasta de configurações do usuário.")?;
-    Ok(base.join("app-buttons-remap/profiles.json"))
+    branded_config_path(&base)
+}
+fn branded_config_path(base: &Path) -> Result<PathBuf, String> {
+    let path = base.join("bindforge/profiles.json");
+    let legacy = base.join("app-buttons-remap/profiles.json");
+    if path.try_exists().map_err(|e| e.to_string())? || !legacy.try_exists().map_err(|e| e.to_string())? { return Ok(path); }
+    // Validate before copying. Preserve the original and never replace a destination
+    // another process has already published. A hard link publishes the complete file.
+    let config = load(&legacy)?;
+    let bytes = serde_json::to_vec_pretty(&config).map_err(|e| e.to_string())?;
+    let parent = path.parent().expect("config parent");
+    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let temporary = parent.join(format!(".migration-{}-{}.tmp", std::process::id(), NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
+    let mut options = OpenOptions::new(); options.write(true).create_new(true);
+    #[cfg(unix)] { use std::os::unix::fs::OpenOptionsExt; options.mode(0o600); }
+    let mut file = options.open(&temporary).map_err(|e| e.to_string())?;
+    let _cleanup = RemoveOnDrop(temporary.clone());
+    file.write_all(&bytes).and_then(|_| file.sync_all()).map_err(|e| e.to_string())?;
+    drop(file);
+    match fs::hard_link(&temporary, &path) {
+        Ok(()) => {}, Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {},
+        Err(e) => return Err(format!("Não foi possível migrar os perfis para BindForge: {e}")),
+    }
+    Ok(path)
 }
 pub fn load(path: &Path) -> Result<Config, String> {
     let file = match fs::File::open(path) {
@@ -130,6 +154,24 @@ pub fn save(path: &Path, mut config: Config, expected_revision: u32) -> Result<C
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn brand_migration_preserves_profiles_revisions_and_existing_files() {
+        let root = path().parent().unwrap().to_path_buf();
+        let legacy = root.join("app-buttons-remap/profiles.json");
+        let saved = save(&legacy, Config::default(), 0).unwrap();
+        let original = fs::read(&legacy).unwrap();
+        let migrated = branded_config_path(&root).unwrap();
+        assert_eq!(migrated, root.join("bindforge/profiles.json"));
+        assert_eq!(load(&migrated).unwrap(), saved);
+        assert_eq!(fs::read(&legacy).unwrap(), original);
+        fs::write(&legacy, b"{broken").unwrap();
+        assert_eq!(branded_config_path(&root).unwrap(), migrated);
+        assert_eq!(load(&migrated).unwrap(), saved);
+        fs::remove_file(&migrated).unwrap();
+        assert!(branded_config_path(&root).is_err());
+        assert!(!migrated.exists());
+        fs::remove_dir_all(root).unwrap();
+    }
     fn path() -> PathBuf {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         std::env::temp_dir().join(format!("remap-config-{}-{}", std::process::id(), NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed))).join("profiles.json")

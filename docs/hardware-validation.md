@@ -35,9 +35,9 @@ comparar o remapeamento do Padrão com o comportamento original nos jogos.
 - `cargo test --workspace --all-features --locked --offline`: 62 testes passaram.
 - `npm test` em `apps/desktop`: 26 testes passaram.
 - `npm run build` em `apps/desktop`: TypeScript e Vite passaram.
-- `cargo run -p remap-daemon --features kde-dbus --locked --offline -- --native-self-test`:
+- `cargo run -p bindforge-daemon --features kde-dbus --locked --offline -- --native-self-test`:
   interrompido por EACCES ao abrir o nó virtual de teste, antes de emitir eventos.
-  A fixture foi removida, sem dispositivos `App Buttons Remap Test` remanescentes
+  A fixture foi removida, sem dispositivos `BindForge Test` remanescentes
   no sysfs. Não foram alteradas permissões.
 
 O teste virtual isolado e a ativação física têm requisitos diferentes: o teste

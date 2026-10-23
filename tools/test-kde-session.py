@@ -14,8 +14,8 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-SERVICE = "org.appbuttons.Remap"
-PATH = "/org/appbuttons/Remap"
+SERVICE = "org.bindforge.Daemon"
+PATH = "/org/bindforge/Daemon"
 
 
 def call(destination, path, method, *arguments):
@@ -37,7 +37,7 @@ def has_receiver():
 
 def read_status():
     # Decode the fixed GVariant tuple without evaluating code or changing strings.
-    reply = call(SERVICE, PATH, "org.appbuttons.Remap.Status1.GetStatus")
+    reply = call(SERVICE, PATH, "org.bindforge.Daemon.Status1.GetStatus")
     reply = re.sub(r"^\(uint32 (\d+), (true|false),", lambda m: f"({m[1]}, {m[2] == 'true'},", reply)
     reply = re.sub(r", uint64 (\d+)\)$", r", \1)", reply)
     version, simulation, profile, focus, revision = ast.literal_eval(reply)
@@ -48,7 +48,8 @@ def read_status():
 
 def run(binary, check_status=False):
     # Do not connect to, terminate, or replace another instance.
-    if has_receiver():
+    if has_receiver() or call("org.freedesktop.DBus", "/org/freedesktop/DBus",
+                              "org.freedesktop.DBus.NameHasOwner", "org.appbuttons.Remap") == "(true,)":
         raise RuntimeError("A remap daemon already owns the service; stop it before this test.")
     owner_before = call("org.freedesktop.DBus", "/org/freedesktop/DBus",
                         "org.freedesktop.DBus.GetNameOwner", "org.kde.KWin")
@@ -75,7 +76,7 @@ def run(binary, check_status=False):
         if receiver_pid != f"(uint32 {daemon.pid},)":
             raise RuntimeError("Service owner is not the child daemon; refusing to continue.")
         try:
-            call(SERVICE, PATH, "org.appbuttons.Remap.Focus1.FocusChanged", "firefox", "")
+            call(SERVICE, PATH, "org.bindforge.Daemon.Focus1.FocusChanged", "firefox", "")
         except subprocess.CalledProcessError as error:
             if "AccessDenied" not in error.stderr:
                 raise RuntimeError("Unexpected rejection from receiver.") from error
@@ -85,7 +86,7 @@ def run(binary, check_status=False):
         deadline = time.monotonic() + 10
         while True:
             current = read_status()
-            if current[1] in ("focused", "no_active_window") and kwin("isScriptLoaded", "app-buttons-remap-runtime") == "(true,)":
+            if current[1] in ("focused", "no_active_window") and kwin("isScriptLoaded", "bindforge-runtime") == "(true,)":
                 break
             if time.monotonic() >= deadline:
                 raise RuntimeError("Automatic bridge did not deliver its initial snapshot.")
@@ -99,7 +100,7 @@ def run(binary, check_status=False):
         daemon.wait(timeout=8)
         if daemon.returncode != 0:
             raise RuntimeError("Daemon failed during graceful shutdown.")
-        if kwin("isScriptLoaded", "app-buttons-remap-runtime") != "(false,)":
+        if kwin("isScriptLoaded", "bindforge-runtime") != "(false,)":
             raise RuntimeError("Runtime bridge remained loaded after shutdown.")
         print("PASS: SIGTERM reset the simulation and unloaded the temporary bridge.", flush=True)
     finally:
@@ -114,7 +115,7 @@ def run(binary, check_status=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--binary", type=Path, default=ROOT / "target/debug/remap-daemon")
+    parser.add_argument("--binary", type=Path, default=ROOT / "target/debug/bindforge-daemon")
     parser.add_argument("--check-status", action="store_true", help="Compatibility flag; live status is always checked")
     args = parser.parse_args()
     try:

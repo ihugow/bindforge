@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "App Buttons Remap",
+  "productName": "BindForge",
   "version": "0.1.0",
-  "identifier": "org.appbuttons.remap",
+  "identifier": "org.bindforge.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://127.0.0.1:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "App Buttons Remap",
+        "title": "BindForge",
         "width": 960,
         "height": 800
       }
@@ -43,9 +43,12 @@
           "kwin"
         ],
         "files": {
-          "/usr/libexec/bindforge/remap-daemon": "../../../target/release/remap-daemon",
+          "/usr/libexec/bindforge/bindforge-daemon": "../../../target/release/bindforge-daemon",
           "/usr/lib/systemd/user/bindforge-daemon.service": "../../../integrations/systemd/bindforge-daemon.service"
-        }
+        },
+        "obsoletes": [
+          "app-buttons-remap <= 0.1.0"
+        ]
       }
     }
   }

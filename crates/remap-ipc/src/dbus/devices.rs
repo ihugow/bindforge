@@ -5,7 +5,7 @@ use remap_core::{Device, DeviceConnection, DeviceKind};
 use zbus::blocking::{connection::Builder, Proxy};
 use super::{SERVICE, PATH};
 
-pub const DEVICES_INTERFACE: &str = "org.appbuttons.Remap.Devices1";
+pub const DEVICES_INTERFACE: &str = "org.bindforge.Daemon.Devices1";
 pub const MAX_DEVICES: usize = 256;
 pub type WireDevice = (String, String, String, String, i32, i32);
 pub type WireDevices = (u32, Vec<WireDevice>);
@@ -41,7 +41,7 @@ fn decode_devices((version, wire): WireDevices) -> Result<Vec<Device>, String> {
 fn read(connection: zbus::blocking::Connection) -> Result<Vec<Device>, String> {
     let bus = zbus::blocking::fdo::DBusProxy::new(&connection).map_err(|e| e.to_string())?;
     let owner = bus.get_name_owner(SERVICE.try_into().expect("valid name"))
-        .map_err(|_| "Daemon unavailable; start remap-daemon with --kde".to_string())?;
+        .map_err(|_| "Daemon unavailable; start bindforge-daemon with --kde".to_string())?;
     let proxy = Proxy::new(&connection, owner.as_str(), PATH, DEVICES_INTERFACE).map_err(|e| e.to_string())?;
     let wire = proxy.call("GetDevices", &()).map_err(|e| match e {
         zbus::Error::MethodError(name, _, _) if name.as_str() == "org.freedesktop.DBus.Error.UnknownMethod"

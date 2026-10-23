@@ -2,9 +2,9 @@ use std::{fs, io, os::fd::AsFd, os::unix::fs::MetadataExt, path::{Path, PathBuf}
 use evdev::{raw_stream::RawDevice, uinput::VirtualDevice, AbsoluteAxisCode, AttributeSet, EventType, InputEvent, KeyCode, RelativeAxisCode, UinputAbsSetup};
 use remap_core::{DeviceConnection, DeviceEnumerator, DeviceKind};
 use super::{Engine, Plan, MouseRegistration, NativeStatus};
-const OUTPUT_NAME: &str = "App Buttons Remap Output";
-const TEST_INPUT: &str = "App Buttons Remap Test Input";
-const TEST_OUTPUT: &str = "App Buttons Remap Test Output";
+const OUTPUT_NAME: &str = "BindForge Output";
+const TEST_INPUT: &str = "BindForge Test Input";
+const TEST_OUTPUT: &str = "BindForge Test Output";
 fn error(context: &str, e: impl std::fmt::Display) -> String { format!("{context}: {e}") }
 fn nonblocking(device: &RawDevice) -> Result<(), String> {
     let flags = rustix::fs::fcntl_getfl(device).map_err(|e| e.to_string())?;
@@ -28,7 +28,7 @@ fn open_registered(id: &str) -> Result<RawDevice, String> {
 }
 fn physical_mouse(kind: DeviceKind, connection: DeviceConnection, name: &str) -> bool {
     matches!(kind, DeviceKind::Mouse | DeviceKind::Composite)
-        && connection != DeviceConnection::Virtual && !name.starts_with("App Buttons Remap")
+        && connection != DeviceConnection::Virtual && !name.starts_with("BindForge") && !name.starts_with("App Buttons Remap")
 }
 fn validate_capabilities(keys: &[KeyCode], relative: &[RelativeAxisCode], absolute: &[AbsoluteAxisCode], events: &[EventType]) -> Result<(), String> {
     if !keys.contains(&KeyCode::BTN_LEFT) || !relative.contains(&RelativeAxisCode::REL_X) || !relative.contains(&RelativeAxisCode::REL_Y) {

@@ -1,4 +1,4 @@
-# App Buttons Remap
+# BindForge
 
 Base de um gerenciador de perfis para mouse/teclado em Rust. Primeiro alvo:
 **Fedora KDE Plasma 6, sessão Wayland**. Windows e macOS são extensões futuras.
@@ -23,7 +23,7 @@ crates/remap-config/        configuração versionada, validação e gravação 
 crates/remap-ipc/           contrato de estado versionado e transporte D-Bus opcional
 crates/platform-kde/        tradução KWin e monitor D-Bus de sessão opcional
 crates/platform-linux/      metadados de dispositivos e identidade Steam do Gamescope
-crates/remap-daemon/        processo separado; monitor stdin/demo e remapper simulado
+crates/bindforge-daemon/        processo separado; monitor stdin/demo e remapper simulado
 integrations/kwin/          fonte da ponte temporária incorporada ao daemon
 examples/focus-events.txt   eventos sintéticos para reprodução
 ```
@@ -63,8 +63,8 @@ Na pasta raiz:
 
 ```bash
 cargo test --workspace --offline
-cargo run -p remap-daemon --offline
-cargo run -p remap-daemon --offline -- --stdin < examples/focus-events.txt
+cargo run -p bindforge-daemon --offline
+cargo run -p bindforge-daemon --offline -- --stdin < examples/focus-events.txt
 ```
 
 A demonstração termina automaticamente. A saída esperada é:
@@ -175,7 +175,7 @@ npm run package:fedora
 ```
 
 O resultado fica em `target/release/bundle/rpm/` na raiz. O pacote tem entrada no
-menu de aplicativos e inclui o daemon em `/usr/libexec/bindforge/remap-daemon`.
+menu de aplicativos e inclui o daemon em `/usr/libexec/bindforge/bindforge-daemon`.
 A geração do pacote não o instala nem ativa serviços. O pacote atual é destinado
 a Fedora 44 x86_64/KDE; instalação e login reais ainda precisam de validação.
 Veja [instalação e ciclo do serviço](docs/desktop-service.md).
@@ -245,7 +245,7 @@ recebimento de foco e migração anterior. **Reconectar ao KDE** pede ao daemon 
 recarregar sua ponte; **Verificar novamente** atualiza o diagnóstico. A UI não instala
 scripts nem inicia o daemon.
 
-A instalação persistente anterior do App Buttons Remap é desabilitada e descarregada
+A instalação persistente da versão anterior é desabilitada e descarregada
 na primeira conexão, evitando duas pontes. Seu pacote é mantido no disco; as demais
 preferências do KDE são preservadas. Somente essa migração usa `kreadconfig6` e
 `kwriteconfig6`; o funcionamento normal dispensa kpackagetool6.
@@ -267,8 +267,8 @@ o daemon reavalia a seleção automaticamente. O Padrão não pode ser excluído
 permanece habilitado e sem regras. Regras avançadas já
 existentes são preservadas e suas associações não são editáveis nesta tela.
 
-Os perfis são gravados em `$XDG_CONFIG_HOME/app-buttons-remap/profiles.json`, ou
-`~/.config/app-buttons-remap/profiles.json` quando XDG não está definido. Não é
+Os perfis são gravados em `$XDG_CONFIG_HOME/bindforge/profiles.json`, ou
+`~/.config/bindforge/profiles.json` quando XDG não está definido. Não é
 criado arquivo até o primeiro salvamento. A prévia **Explorar a seleção de perfis**
 consulta a configuração salva. O botão **Detectar pela janela** abre um modal de
 captura: aguarde **Captura pronta**, clique na janela desejada ou use Alt+Tab e volte
@@ -304,7 +304,7 @@ O formato e os limites estão em [docs/profiles.md](docs/profiles.md).
 Inicie o daemon na raiz, em um terminal:
 
 ```bash
-cargo run -p remap-daemon --features kde-dbus -- --kde
+cargo run -p bindforge-daemon --features kde-dbus -- --kde
 ```
 
 Em outro terminal:
@@ -353,7 +353,7 @@ npm run build
 ## Observar foco real no KDE (entrada inicia pausada)
 
 ```bash
-cargo run -p remap-daemon --features kde-dbus -- --kde
+cargo run -p bindforge-daemon --features kde-dbus -- --kde
 ```
 
 O daemon carrega a ponte automaticamente e recebe o foco inicial e mudanças
@@ -396,7 +396,7 @@ transferidas entre interfaces, recusando conflitos no destino.
 Também é possível testar sem interface ou KDE:
 
 ```bash
-cargo run -p remap-daemon --features linux-devices -- --list-devices
+cargo run -p bindforge-daemon --features linux-devices -- --list-devices
 ```
 
 O adaptador usa libudev; no Fedora, a dependência de compilação é `systemd-devel`.
@@ -411,7 +411,7 @@ automaticamente a ponte temporária no compositor da sessão atual, sem instalar
 alterar configurações ou pedir ativação de janelas.
 
 ```bash
-cargo build -p remap-daemon --features kde-dbus --locked
+cargo build -p bindforge-daemon --features kde-dbus --locked
 python3 tools/test-kde-session.py
 # Também validar a API de estado após o snapshot real:
 python3 tools/test-kde-session.py --check-status
@@ -462,3 +462,9 @@ e permissões de entrada. Nenhuma dessas opções foi implementada ou validada.
 Próximas etapas: validar instalação/login do pacote na sessão real, medir latência,
 ampliar a cobertura de hardware, adicionar controle de taxa do receptor de foco
 e desenvolver o editor/backend de teclado.
+
+A marca, os executáveis e o pacote agora são **BindForge**. Perfis anteriores
+são migrados automaticamente para a pasta `bindforge`, preservando o original.
+Atualize a interface e o daemon juntos; a versão nova recusa iniciar ao lado
+de um daemon da versão anterior. Referências antigas no código são restritas
+à migração e detecção de compatibilidade.

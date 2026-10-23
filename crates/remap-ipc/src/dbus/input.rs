@@ -1,7 +1,7 @@
 use std::time::Duration;
 use zbus::blocking::{connection::Builder, Proxy};
 use super::{SERVICE, PATH};
-pub const INPUT_INTERFACE: &str = "org.appbuttons.Remap.Input1";
+pub const INPUT_INTERFACE: &str = "org.bindforge.Daemon.Input1";
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InputStatus { pub active: bool, pub device_id: String, pub message: String }
 pub enum InputCommand<'a> { Status, Start(&'a str), Pause }

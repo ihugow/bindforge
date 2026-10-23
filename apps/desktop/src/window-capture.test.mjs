@@ -8,7 +8,7 @@ test("waits for arming, delivers one ID and ignores later events", async () => {
   assert.deepEqual(states, ["arming"]); await flush();
   assert.deepEqual(states, ["arming", "waiting"]);
   receive({ kind: "captured", app_id: "firefox" });
-  receive({ kind: "captured", app_id: "remap-desktop" });
+  receive({ kind: "captured", app_id: "bindforge-desktop" });
   dispose(); assert.deepEqual(ids, ["firefox"]); assert.equal(stops, 1);
 });
 test("cancels a late start and never delivers stale results", async () => {

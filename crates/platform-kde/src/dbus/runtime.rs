@@ -6,7 +6,7 @@ use zbus::blocking::{Connection, Proxy};
 use remap_ipc::dbus::BridgeStore;
 const LEGACY: &str = "app-buttons-remap-focus";
 const KEY: &str = "app-buttons-remap-focusEnabled";
-pub const RUNTIME_PLUGIN: &str = "app-buttons-remap-runtime";
+pub const RUNTIME_PLUGIN: &str = "bindforge-runtime";
 const SCRIPT: &str = include_str!("../../../../integrations/kwin/contents/code/main.js");
 fn user_dir(variable: &str, fallback: &str) -> Result<PathBuf, String> {
     if let Some(p) = std::env::var_os(variable).map(PathBuf::from).filter(|p| p.is_absolute()) { return Ok(p); }
@@ -41,7 +41,7 @@ impl Scratch {
         use std::os::unix::fs::DirBuilderExt;
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         for _ in 0..100 {
-            let p = std::env::temp_dir().join(format!("app-buttons-kwin-{}-{}", std::process::id(), NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
+            let p = std::env::temp_dir().join(format!("bindforge-kwin-{}-{}", std::process::id(), NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
             match fs::DirBuilder::new().mode(0o700).create(&p) {
                 Ok(()) => return Ok(Self(p)), Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
                 Err(e) => return Err(e.to_string()),
@@ -75,7 +75,7 @@ fn disable_legacy(config: &Path) -> Result<(), String> {
     if fs::read_to_string(&output).map_err(|e| e.to_string())?.trim() == "true" {
         run("kwriteconfig6", &["--file".as_ref(), config.as_os_str(), "--group".as_ref(), "Plugins".as_ref(), "--key".as_ref(), KEY.as_ref(), "--type".as_ref(), "bool".as_ref(), "false".as_ref()], None)?;
         run("kreadconfig6", &["--file".as_ref(), config.as_os_str(), "--group".as_ref(), "Plugins".as_ref(), "--key".as_ref(), KEY.as_ref(), "--default".as_ref(), "false".as_ref()], Some(&output))?;
-        if fs::read_to_string(&output).map_err(|e| e.to_string())?.trim() == "true" { return Err("Desabilite o script App Buttons Remap antigo nas configurações do KWin para concluir a migração.".into()); }
+        if fs::read_to_string(&output).map_err(|e| e.to_string())?.trim() == "true" { return Err("Desabilite o script BindForge antigo nas configurações do KWin para concluir a migração.".into()); }
     }
     Ok(())
 }
@@ -85,7 +85,7 @@ impl ScriptFile {
         let uid = fs::metadata("/proc/self").map_err(|e| e.to_string())?.uid();
         let base = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).filter(|p| p.is_absolute())
             .unwrap_or_else(std::env::temp_dir);
-        Self::at(base.join(format!("app-buttons-remap-bridge-{uid}")), uid)
+        Self::at(base.join(format!("bindforge-bridge-{uid}")), uid)
     }
     fn at(directory: PathBuf, uid: u32) -> Result<Self, String> {
         match fs::DirBuilder::new().mode(0o700).create(&directory) {
@@ -134,6 +134,7 @@ impl BridgeRuntime {
             }
         }
         // Stable runtime name also lets the next daemon reclaim a script left by SIGKILL.
+        unload(&proxy, "app-buttons-remap-runtime")?; // Clear a stale bridge from the previous brand.
         unload(&proxy, RUNTIME_PLUGIN)?;
         self.store.update(|s| { s.loaded = false; s.focus_received = false; });
         if self.script.is_none() { self.script = Some(ScriptFile::create()?); }
