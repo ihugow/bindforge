@@ -139,27 +139,21 @@ na sessão KDE real. Cobre remetente não autorizado, campos inválidos, fallbac
 coalescência, perda/reaquisição do compositor, bus encerrado e nome já ocupado.
 O teste JS verifica snapshot inicial e argumentos de mudanças/ausência de foco.
 
-Antes de avançar para entrada nativa: observar bloqueio/desbloqueio e suspensão,
-adicionar controle de taxa e testar apps
-Wayland/XWayland, Flatpak, diálogos e mudanças rápidas no Plasma real. A consulta
-de estado da UI está implementada via `Status1` (ver [status-ipc.md](status-ipc.md));
-a configuração versionada e o editor de perfis estão implementados.
+A consulta de estado usa `Status1` (ver [status-ipc.md](status-ipc.md)). A ponte
+reconecta automaticamente e o backend evdev/uinput está implementado para um mouse.
+Bloqueio/desbloqueio e suspensão foram validados em sessão real; consulte
+[session-lifecycle.md](session-lifecycle.md) e [hardware-validation.md](hardware-validation.md).
+Continuam pendentes controle de taxa específico do receptor, medição de latência
+e cobertura ampliada de apps Wayland/XWayland, Flatpak, diálogos e hardware.
 
-## Entrada real: decisão pendente
+## Entrada real e execução na sessão
 
-Investigar evdev/uinput ou integração com um serviço existente, considerando
-supressão do evento original, layouts, latência e autorização. Nenhuma permissão
-extra foi concedida por este projeto. A UI e a política continuam sem privilégios.
-Se necessário, separar um helper mínimo, com dispositivos explicitamente autorizados
-e operações tipadas; nunca aceitar caminhos ou comandos shell arbitrários.
-Não conceder acesso global a `/dev/input`, não adicionar automaticamente o usuário
-ao grupo `input`, nem instalar regras udev amplas.
-
-Exigir exclusão do próprio dispositivo virtual, troca atômica de mapas, liberação
-de teclas ao perder sessão, saída de emergência, watchdog, hotplug e restauração do
-fluxo original após crash. Um teste simulado nunca comprova remapeamento físico.
-Firmware, DPI/RGB e macros ficam fora desta etapa.
-
+A implementação usa evdev/uinput, com supressão do evento original, liberação de
+ações mantidas e ativação explícita de um mouse cadastrado. A UI e o daemon rodam
+como usuário comum; não há alteração automática de ACLs, grupos ou regras udev.
+Firmware, DPI/RGB e macros executáveis continuam fora do escopo atual.
+Veja [native-input.md](native-input.md) para capacidades e limites, e
+[desktop-service.md](desktop-service.md) para execução sem terminal e login opcional.
 
 ## Identidade individual para Gamescope por jogo
 

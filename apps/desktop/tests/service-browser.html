@@ -1,0 +1,18 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Serviço — teste local</title><body><main>
+<header><span class="eyebrow">TESTE VISUAL · SERVIÇO SIMULADO</span><h1>App Buttons Remap</h1></header><div id="root"></div>
+</main><script type="module">
+import React from 'react'; import {createRoot} from 'react-dom/client';
+import {DaemonServicePanel} from '../src/daemon-service-panel.tsx'; import '../src/style.css';
+let state={active_state:'inactive',autostart:false,connected:false,external:false,binary_available:true,result:'success',exit_status:0};
+window.calls=[]; window.failNext=false;
+window.setService=next=>Object.assign(state,next);
+const api={status:async()=>structuredClone(state),control:async action=>{
+  window.calls.push(action); await new Promise(resolve=>setTimeout(resolve,100));
+  if(window.failNext){window.failNext=false;throw Error('Falha simulada de inicialização');}
+  if(action==='enable_autostart')state.autostart=true;
+  else if(action==='disable_autostart')state.autostart=false;
+  else {state.connected=action!=='stop';state.active_state=state.connected?'active':'inactive';}
+  return structuredClone(state);
+}};
+createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode,null,React.createElement(DaemonServicePanel,{native:true,active:true,connected:false,api})));
+</script></body></html>

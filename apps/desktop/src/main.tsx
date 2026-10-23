@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import "./style.css";
+import { DaemonServicePanel } from "./daemon-service-panel";
 import { NativeInputPanel } from "./native-input-panel";
 import { KwinIntegrationPanel } from "./kwin-integration-panel";
 import { HomePanel } from "./home-panel";
@@ -57,6 +58,7 @@ function App() {
     <aside><strong>{simulation ? "Remapeamento pausado" : "Remapeamento físico ativo"}</strong><p>{simulation ? "A seleção de perfis continua sendo acompanhada. Ative um mouse cadastrado para executar suas ações." : "O daemon está remapeando o mouse selecionado conforme a janela em foco. Use Pausar remapeamento para restaurar o funcionamento original."}</p></aside>
     <WorkspaceTabs home={visible => <>
       <HomePanel config={config} native={native} daemon={daemon} active={visible} onConfigChange={setConfig} onSaved={() => setSelection(null)} read={readDevices} />
+    <DaemonServicePanel native={native} active={visible} connected={daemon.phase === "connected"} />
     <NativeInputPanel focused={daemon.phase === "connected" && daemon.status.focus_state === "focused"} version={daemon.phase === "connected" ? daemon.status.revision : ""} native={native} connected={daemon.phase === "connected"} simulation={simulation} config={config} />
     <KwinIntegrationPanel native={native} active={visible} daemonState={daemon.phase === "connected" ? daemon.status.focus_state : daemon.phase} />
     <section aria-labelledby="daemon-heading">
@@ -73,7 +75,7 @@ function App() {
         <div><dt>Atualização</dt><dd>{daemon.status.revision}</dd></div>
       </dl>}
       {daemon.phase === "connected" && <ProfileHistory status={daemon.status} config={config} />}
-      {daemon.phase === "unavailable" && <p className="hint">Inicie o daemon com <code>--kde</code> e confira se as versões são compatíveis. O painel reconecta quando o daemon volta a ficar disponível.</p>}
+      {daemon.phase === "unavailable" && <p className="hint">Use Iniciar serviço no painel acima e confira o diagnóstico. O painel reconecta quando o daemon volta a ficar disponível.</p>}
       {daemon.phase === "browser" && <p className="hint">Execute <code>npm run tauri dev</code> para acompanhar o processo local. O navegador não acessa o daemon.</p>}
     </section>
     </>} profiles={visible => <>

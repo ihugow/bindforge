@@ -1,0 +1,19 @@
+# Managed by BindForge
+[Unit]
+Description=BindForge mouse remapping daemon
+PartOf=graphical-session.target
+After=graphical-session-pre.target
+StartLimitIntervalSec=30
+StartLimitBurst=3
+
+[Service]
+Type=dbus
+BusName=org.appbuttons.Remap
+ExecStart=/usr/libexec/bindforge/remap-daemon --kde
+Restart=on-failure
+RestartSec=2
+TimeoutStartSec=15
+TimeoutStopSec=10
+
+[Install]
+WantedBy=graphical-session.target

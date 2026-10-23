@@ -24,9 +24,29 @@
     }
   },
   "bundle": {
-    "active": false,
+    "active": true,
     "icon": [
       "icons/icon.png"
-    ]
+    ],
+    "targets": [
+      "rpm"
+    ],
+    "category": "Utility",
+    "shortDescription": "Perfis de mouse para aplicativos no KDE Wayland",
+    "linux": {
+      "rpm": {
+        "depends": [
+          "webkit2gtk4.1",
+          "gtk3",
+          "systemd",
+          "systemd-libs",
+          "kwin"
+        ],
+        "files": {
+          "/usr/libexec/bindforge/remap-daemon": "../../../target/release/remap-daemon",
+          "/usr/lib/systemd/user/bindforge-daemon.service": "../../../integrations/systemd/bindforge-daemon.service"
+        }
+      }
+    }
   }
 }

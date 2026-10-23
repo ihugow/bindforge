@@ -485,3 +485,38 @@ somente após ativação explícita. O observador de estado confirmou as duas pa
 a permanência em pausa após retornar e as reativações posteriores. A consulta
 final confirmou a renovação do inibidor de atraso e a ponte KWin conectada.
 Evidências e horários em [session-lifecycle.md](session-lifecycle.md).
+
+## Controle do serviço, login opcional e RPM
+
+- Snapshot anterior registrado no commit `a84b018`, incluindo todas as implementações
+  e validações de hardware/sessão existentes.
+- Painel nativo permite iniciar, parar e reiniciar somente o serviço do usuário
+  `bindforge-daemon.service`, além de habilitar/desabilitar o início no login KDE.
+  Habilitar não inicia agora; desabilitar não para a execução atual. O remapeamento
+  permanece opt-in, usando o backend existente.
+- `cargo test --workspace --all-features --locked --offline`: 64 testes aprovados.
+- `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --offline`:
+  2 testes novos aprovados. Barramento privado/systemd simulado cobrem primeira
+  instalação (inclusive FileNotFound real do protocolo), início/parada/reinício,
+  espera pelo job, login opcional sem iniciar/parar, proteção de daemon externo,
+  unidade personalizada, executável ausente e escapes de ExecStart.
+- `npm test`: 26 testes aprovados; TypeScript/Vite e shell Tauri compilados.
+- Chrome headless/Playwright com `tests/service-browser.html`: início, parada,
+  reinício, habilitação/desabilitação sem mudar execução, erro que permanece visível,
+  bloqueio dos controles para daemon externo e layout com 390px aprovados. Nenhum
+  erro JavaScript. Captura de tela inspecionada com layout de 960px.
+- Probe temporário usando o código Rust de produção leu o systemd real: unidade
+  inativa, início no login desabilitado e daemon existente identificado como externo.
+  Probe removido após o teste. Nenhum serviço real foi criado, parado ou reiniciado.
+- `npm run package:fedora`: gera o RPM release com interface, daemon, unidade e
+  entrada no menu. O RPM foi extraído em pasta temporária para conferir executáveis,
+  checksum do daemon, bibliotecas, launcher e dependências presentes no Fedora 44.
+  A unidade extraída passou em `systemd-analyze --user verify`, substituindo somente
+  ExecStart pelo caminho temporário do executável extraído para a inspeção.
+- `git diff --check` aprovado. Documentação antiga foi atualizada para refletir
+  o backend nativo e o ciclo de sessão já validados.
+
+O RPM foi construído e inspecionado, sem instalação ou habilitação automática.
+Instalação pelo gerenciador de pacotes, início real do serviço pela UI e login/reboot
+com inicialização habilitada continuam exigindo validação na sessão do usuário.
+O daemon existente e a captura do mouse não foram alterados por esta rodada.

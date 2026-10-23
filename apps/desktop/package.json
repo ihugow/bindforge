@@ -7,7 +7,8 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
     "tauri": "tauri",
-    "test": "node --experimental-strip-types --test src/daemon-status.test.mjs src/devices.test.mjs src/profiles.test.mjs src/window-capture.test.mjs src/mouse-bindings.test.mjs src/configured-devices.test.mjs src/kwin-integration.test.mjs"
+    "test": "node --experimental-strip-types --test src/daemon-status.test.mjs src/devices.test.mjs src/profiles.test.mjs src/window-capture.test.mjs src/mouse-bindings.test.mjs src/configured-devices.test.mjs src/kwin-integration.test.mjs",
+    "package:fedora": "python3 ../../tools/package-fedora.py"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

@@ -79,7 +79,8 @@ simulation profile=default
 `--stdin` aceita um ID exato por linha; linha vazia significa ausência de foco.
 EOF encerra e faz reset. O limite é 4096 bytes por registro, incluindo newline;
 UTF-8 inválido e caracteres de controle são rejeitados. Entrada inválida encerra
-com erro após reset. O daemon não roda em background nem instala serviços.
+com erro após reset. Pela linha de comando, o daemon roda em primeiro plano.
+O aplicativo também pode gerenciá-lo como serviço do usuário, conforme a seção abaixo.
 No modo `--kde`, SIGINT e SIGTERM encerram a captura e removem a ponte temporária.
 **Não execute a UI nem o daemon como root.**
 
@@ -145,10 +146,39 @@ sudo dnf group install "c-development"
 Isso é preparação de ferramentas de desenvolvimento; a aplicação sempre roda como
 usuário comum. Consulte as [instruções oficiais do Tauri](https://v2.tauri.app/start/prerequisites/)
 para seu Fedora, especialmente Kinoite/OSTree. Nenhum pacote do sistema é instalado
-por este projeto. O shell não tem plugins de shell/processo/filesystem e expõe
-`preview_profile`, consulta de diagnóstico e início/fim de uma assinatura de estado,
-todos sem efeitos de entrada. A assinatura usa sinais D-Bus e um canal Tauri;
+por este projeto. O shell não tem plugins genéricos de shell/processo/filesystem. Comandos tipados
+oferecem prévia, perfis, inventário, ativação/pausa do mouse e gerenciamento do
+serviço do usuário. A assinatura de estado usa sinais D-Bus e um canal Tauri;
 o estado não é consultado periodicamente pela interface.
+
+## Serviço do usuário e pacote Fedora
+
+Em **Início → Serviço do BindForge**, use **Iniciar serviço**, **Parar serviço**
+ou **Reiniciar serviço**. Não é necessário abrir um terminal. O serviço acompanha
+sua sessão gráfica e continua funcionando depois que a janela é fechada.
+Iniciar, reiniciar e retornar de bloqueio/suspensão mantêm a captura pausada até
+ativação explícita do mouse.
+
+**Iniciar serviço ao entrar no KDE** é opcional e vem desativado. Marcar prepara
+o próximo login sem iniciar o serviço agora; desmarcar não para uma execução atual.
+Um daemon iniciado pelo terminal é identificado como externo e não é encerrado pelo
+app: encerre-o na origem para passar a usar o serviço. Configurações personalizadas
+com o mesmo nome não são sobrescritas. O app gerencia somente
+`bindforge-daemon.service` no systemd do usuário.
+
+Para construir o RPM contendo a interface, o daemon e a unidade de serviço:
+
+```bash
+cd apps/desktop
+npm ci
+npm run package:fedora
+```
+
+O resultado fica em `target/release/bundle/rpm/` na raiz. O pacote tem entrada no
+menu de aplicativos e inclui o daemon em `/usr/libexec/bindforge/remap-daemon`.
+A geração do pacote não o instala nem ativa serviços. O pacote atual é destinado
+a Fedora 44 x86_64/KDE; instalação e login reais ainda precisam de validação.
+Veja [instalação e ciclo do serviço](docs/desktop-service.md).
 
 ## Início e editor visual do mouse
 
@@ -182,7 +212,8 @@ conexão, conforme [docs/devices.md](docs/devices.md).
 Em **Início → Remapeamento do mouse**, selecione um cadastro salvo e clique em
 **Ativar remapeamento**. Pause outros remapeadores nesse mouse antes de ativar.
 **Pausar remapeamento** restaura seu funcionamento original. O daemon sempre inicia
-pausado. Fechar somente a UI mantém o daemon funcionando; Ctrl+C no terminal o encerra.
+pausado. Fechar somente a UI mantém o daemon funcionando; use **Parar serviço**
+para encerrar o serviço ou Ctrl+C quando ele foi iniciado no terminal.
 
 A primeira etapa aceita uma interface física com funções de mouse por vez,
 incluindo interfaces compostas compatíveis. Teclados sem ponteiro e dispositivos
@@ -405,10 +436,12 @@ Veja [o plano e os limites de segurança](docs/kde-wayland.md). O script experim
 usa `workspace.windowActivated` e `workspace.activeWindow`, descritos na
 [API oficial do KWin](https://develop.kde.org/docs/plasma/kwin/api/).
 Ele envia IDs de aplicativo e o PID da janela ao receptor; não registra títulos, PIDs ou IDs em logs.
-O snapshot inicial foi validado no KWin 6.7.5 real. A troca entre janelas
-e os demais cenários de sessão continuam pendentes. Bloqueio de
-sessão, limitação de taxa e encerramento por sinal continuam pendentes e impedem
-qualquer habilitação de remapeamento real nesta etapa.
+O snapshot inicial, a troca entre janelas e o remapeamento do Logitech G PRO
+Wireless foram validados no KWin 6.7.5 real. Bloqueio de sessão e suspensão
+pausam a captura; SIGINT/SIGTERM liberam a entrada e descarregam a ponte.
+Veja os registros de [hardware](docs/hardware-validation.md) e
+[sessão](docs/session-lifecycle.md). Controle de taxa específico para o receptor
+de foco continua pendente.
 
 Adaptadores futuros deverão implementar as mesmas abstrações, com dependências
 específicas em crates separados/`cfg(target_os)`. Windows precisará de decisões sobre
@@ -424,9 +457,8 @@ e permissões de entrada. Nenhuma dessas opções foi implementada ou validada.
 - `cargo fmt` e `cargo clippy` indisponíveis no ambiente de implementação.
 - A ponte passou no bus privado e no teste de snapshot inicial com KWin real.
   O usuário confirmou trocas de perfil nos logs do daemon e conexão no shell nativo.
-  O histórico visual atualizado e dispositivos físicos ainda exigem validação.
+  As validações físicas e de ciclo de sessão estão registradas nos documentos acima.
 
-Próximas etapas: bloqueio de sessão,
-controle de taxa e snapshot/reconexão; editor visual de teclado e validação
-do editor de mouse no shell Tauri; backend Linux de entrada isolado,
-validado primeiro com dispositivos virtuais e recuperação de falhas.
+Próximas etapas: validar instalação/login do pacote na sessão real, medir latência,
+ampliar a cobertura de hardware, adicionar controle de taxa do receptor de foco
+e desenvolver o editor/backend de teclado.

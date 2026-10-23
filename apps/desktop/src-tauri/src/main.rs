@@ -1,6 +1,36 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #[cfg(target_os = "linux")]
 mod kwin_integration;
+#[cfg(target_os = "linux")]
+mod daemon_service;
+
+#[tauri::command]
+async fn get_daemon_service() -> Result<daemon_service_status::Status, String> {
+    #[cfg(target_os = "linux")]
+    { tauri::async_runtime::spawn_blocking(daemon_service::status).await.map_err(|e| e.to_string())? }
+    #[cfg(not(target_os = "linux"))]
+    { Err("O gerenciamento do daemon está disponível no Linux com systemd.".into()) }
+}
+#[tauri::command]
+async fn control_daemon_service(action: daemon_service_status::Action, window: tauri::WebviewWindow) -> Result<daemon_service_status::Status, String> {
+    if window.label() != "main" { return Err("Unsupported window".into()); }
+    #[cfg(target_os = "linux")]
+    { tauri::async_runtime::spawn_blocking(move || daemon_service::control(action)).await.map_err(|e| e.to_string())? }
+    #[cfg(not(target_os = "linux"))]
+    { let _ = action; Err("O gerenciamento do daemon está disponível no Linux com systemd.".into()) }
+}
+mod daemon_service_status {
+    #[cfg(target_os = "linux")]
+    pub use super::daemon_service::{ServiceStatus as Status, ServiceAction as Action};
+    #[cfg(not(target_os = "linux"))]
+    #[derive(serde::Serialize)]
+    pub struct Status {}
+    #[cfg(not(target_os = "linux"))]
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "snake_case")]
+    pub enum Action { Start, Stop, Restart, EnableAutostart, DisableAutostart }
+}
+
 #[tauri::command]
 async fn get_kwin_integration() -> Result<kwin_integration_status::Status, String> {
     #[cfg(target_os = "linux")]
@@ -316,6 +346,6 @@ fn main() {
             window.state::<WindowCaptures>().cancel_all();
         }
     });
-    builder.invoke_handler(tauri::generate_handler![get_input_status, start_mouse, pause_mouse, get_kwin_integration, configure_kwin_integration, start_window_capture, stop_window_capture, load_profiles, save_profiles, preview_profile, get_daemon_status, list_devices, start_daemon_status, stop_daemon_status])
+    builder.invoke_handler(tauri::generate_handler![get_daemon_service, control_daemon_service, get_input_status, start_mouse, pause_mouse, get_kwin_integration, configure_kwin_integration, start_window_capture, stop_window_capture, load_profiles, save_profiles, preview_profile, get_daemon_status, list_devices, start_daemon_status, stop_daemon_status])
         .run(tauri::generate_context!()).expect("failed to start desktop shell");
 }

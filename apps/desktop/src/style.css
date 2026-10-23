@@ -124,3 +124,6 @@ output span { display: block; } li { margin-block: 6px; } code { overflow-wrap: 
 
 .device-battery { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; font-size: .85rem; color: #b8c8d8; }
 .device-battery.battery-low { color: #ffca80; }
+
+.service-autostart { display: flex; align-items: center; gap: .65rem; margin-top: 1.25rem; }
+.service-autostart input { width: auto; margin: 0; accent-color: #75e4bc; }

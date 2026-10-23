@@ -64,12 +64,14 @@ de reconexão a cada segundo, cancelável, sem expor snapshots anteriores como a
 As chamadas iniciais têm timeout de dois segundos. Modo nativo, versão incompatível,
 metadados inválidos e históricos fora de ordem/limite são rejeitados. O frontend não
 fornece endereços ou nomes arbitrários ao comando. O D-Bus de estado não escreve perfis. Comandos Tauri separados carregam e salvam
-a configuração local; não iniciam processos nem injetam eventos de entrada.
+a configuração local. Comandos tipados de entrada ativam/pausam o mouse; comandos
+de serviço separados gerenciam somente a unidade systemd do BindForge.
 
 A fronteira de confiança é a sessão do usuário: não existe atestação criptográfica
 da identidade do daemon. O estado expõe IDs de perfis, sem títulos, app IDs,
-executáveis ou teclas. Controle de taxa, bloqueio de sessão e entrada nativa permanecem
-pendentes antes de qualquer remapeamento físico.
+executáveis ou teclas. O backend nativo e a pausa por bloqueio/suspensão estão
+implementados e validados separadamente. Controle de taxa específico do receptor
+de foco continua pendente.
 
 ## Tauri e React
 
