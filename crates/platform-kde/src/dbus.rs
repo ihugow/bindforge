@@ -119,17 +119,17 @@ impl KdeWindowMonitor {
         Self::session_with_status(StatusStore::default())
     }
     pub fn session_with_status(status: StatusStore) -> Result<Self, String> {
-        Self::session_with_input(status, platform_linux::native::MouseSession::default())
+        Self::session_with_input(status, platform_linux::native::InputSession::default())
     }
-    pub fn session_with_input(status: StatusStore, input: platform_linux::native::MouseSession) -> Result<Self, String> {
+    pub fn session_with_input(status: StatusStore, input: platform_linux::native::InputSession) -> Result<Self, String> {
         Self::build(Builder::session().map_err(|e| e.to_string())?, status, true, input)
     }
     /// Explicit bus address for isolated integration tests and diagnostics.
     /// Sender authentication is identical to the session-bus path.
     pub fn at_address(address: &str) -> Result<Self, String> {
-        Self::build(Builder::address(address).map_err(|e| e.to_string())?, StatusStore::default(), false, platform_linux::native::MouseSession::default())
+        Self::build(Builder::address(address).map_err(|e| e.to_string())?, StatusStore::default(), false, platform_linux::native::InputSession::default())
     }
-    fn build(builder: Builder<'_>, status: StatusStore, migrate: bool, input: platform_linux::native::MouseSession) -> Result<Self, String> {
+    fn build(builder: Builder<'_>, status: StatusStore, migrate: bool, input: platform_linux::native::InputSession) -> Result<Self, String> {
         let mailbox = Arc::new(Mailbox::default());
         let capture = CaptureStore::default();
         let sequence = Arc::new(std::sync::atomic::AtomicU64::new(0));
@@ -142,7 +142,7 @@ impl KdeWindowMonitor {
             .serve_at(PATH, CaptureInterface { store: capture, sequence }).map_err(|e| e.to_string())?
             .serve_at(PATH, StatusInterface(status)).map_err(|e| e.to_string())?
             .serve_at(PATH, remap_ipc::dbus::IntegrationInterface(bridge_store.clone())).map_err(|e| e.to_string())?
-            .serve_at(PATH, platform_linux::native::MouseInterface(input)).map_err(|e| e.to_string())?
+            .serve_at(PATH, platform_linux::native::InputInterface(input)).map_err(|e| e.to_string())?
             .serve_at(PATH, receiver).map_err(|e| e.to_string())?
             .build().map_err(|e| e.to_string())?;
         let bus = zbus::blocking::fdo::DBusProxy::new(&connection).map_err(|e| e.to_string())?;

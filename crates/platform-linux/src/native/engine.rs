@@ -12,8 +12,8 @@ pub fn mouse_code(id: u16) -> Result<u16, String> {
 pub fn key_code(name: &str) -> Result<u16, String> {
     let upper = name.trim().to_ascii_uppercase();
     let normalized = match upper.as_str() {
-        "CTRL" | "CONTROL" => "KEY_LEFTCTRL", "SHIFT" => "KEY_LEFTSHIFT", "ALT" => "KEY_LEFTALT",
-        "SUPER" | "META" | "WIN" => "KEY_LEFTMETA", "ESC" => "KEY_ESC", "RETURN" => "KEY_ENTER",
+        "CTRL" | "CONTROL" => "KEY_LEFTCTRL", "SHIFT" => "KEY_LEFTSHIFT", "ALT" => "KEY_LEFTALT", "ALTGR" => "KEY_RIGHTALT",
+        "SUPER" | "META" | "WIN" => "KEY_LEFTMETA", "ESC" | "ESCAPE" => "KEY_ESC", "RETURN" => "KEY_ENTER",
         "PAGEUP" => "KEY_PAGEUP", "PAGEDOWN" => "KEY_PAGEDOWN", "CAPSLOCK" => "KEY_CAPSLOCK",
         _ => "",
     };
@@ -32,20 +32,61 @@ impl Plan {
         let mut result = BTreeMap::new();
         for button in codes {
             let binding = profile.binding_for(device_id, &InputControl::MouseButton(button)).expect("collected binding");
-            let action = match &binding.action {
-                Action::Disabled => vec![], Action::MouseButton(b) => vec![mouse_code(*b)?],
-                Action::KeyChord(keys) => {
-                    if keys.is_empty() || keys.len() > 16 { return Err("O atalho deve conter de 1 a 16 teclas.".into()); }
-                    let keys: Vec<_> = keys.iter().map(|k| key_code(k)).collect::<Result<_, _>>()?;
-                    if keys.iter().copied().collect::<BTreeSet<_>>().len() != keys.len() { return Err("O atalho contém teclas físicas repetidas.".into()); }
-                    keys
-                }
-            };
+            let action = compile_action(&binding.action)?;
             result.insert(mouse_code(button)?, action);
         }
         Ok(Self(result))
     }
+    pub fn compile_keyboard(profile: &Profile, device_id: &str) -> Result<Self, String> {
+        let mut bindings = BTreeMap::new();
+        for binding in &profile.bindings {
+            if binding.device_id.as_deref().is_some_and(|id| id != device_id) { continue; }
+            let InputControl::Key(name) = &binding.input else { continue; };
+            let code = key_code(name)?;
+            let specific = binding.device_id.is_some();
+            if bindings.insert((code, specific), binding).is_some() {
+                return Err(format!("Mais de um mapeamento para a mesma tecla física: {name}."));
+            }
+        }
+        let mut result = BTreeMap::new();
+        for ((code, specific), binding) in &bindings {
+            if !specific && bindings.contains_key(&(*code, true)) { continue; }
+            result.insert(*code, compile_action(&binding.action)?);
+        }
+        Ok(Self(result))
+    }
     fn output(&self, code: u16) -> Vec<u16> { self.0.get(&code).cloned().unwrap_or_else(|| vec![code]) }
+}
+fn compile_action(action: &Action) -> Result<Vec<u16>, String> {
+    match action {
+        Action::Disabled => Ok(vec![]), Action::MouseButton(b) => Ok(vec![mouse_code(*b)?]),
+        Action::KeyChord(keys) => {
+            if keys.is_empty() || keys.len() > 16 { return Err("O atalho deve conter de 1 a 16 teclas.".into()); }
+            let keys: Vec<_> = keys.iter().map(|k| key_code(k)).collect::<Result<_, _>>()?;
+            if keys.iter().copied().collect::<BTreeSet<_>>().len() != keys.len() { return Err("O atalho contém teclas físicas repetidas.".into()); }
+            Ok(keys)
+        }
+    }
+}
+fn modifier(code: u16) -> bool {
+    [KeyCode::KEY_LEFTCTRL, KeyCode::KEY_RIGHTCTRL, KeyCode::KEY_LEFTSHIFT, KeyCode::KEY_RIGHTSHIFT,
+        KeyCode::KEY_LEFTALT, KeyCode::KEY_RIGHTALT, KeyCode::KEY_LEFTMETA, KeyCode::KEY_RIGHTMETA].iter().any(|key| key.0 == code)
+}
+/// Physical Ctrl+Alt+Pause remains available even if these controls are remapped.
+#[derive(Default)]
+pub(super) struct EmergencyChord(BTreeSet<u16>);
+impl EmergencyChord {
+    pub fn event(&mut self, event: InputEvent) -> bool {
+        if event.event_type() != EventType::KEY { return false; }
+        let fresh_press = match event.value() {
+            1 => self.0.insert(event.code()),
+            0 => { self.0.remove(&event.code()); false },
+            _ => false,
+        };
+        event.code() == KeyCode::KEY_PAUSE.0 && fresh_press
+            && [KeyCode::KEY_LEFTCTRL, KeyCode::KEY_RIGHTCTRL].iter().any(|key| self.0.contains(&key.0))
+            && [KeyCode::KEY_LEFTALT, KeyCode::KEY_RIGHTALT].iter().any(|key| self.0.contains(&key.0))
+    }
 }
 #[derive(Default)]
 pub struct Engine {
@@ -70,7 +111,14 @@ impl Engine {
                 let output = self.plan.output(code); self.press(&output, &mut out); self.held.insert(code, output);
             }
             0 => { self.blocked.remove(&code); if let Some(output) = self.held.remove(&code) { self.release(&output, &mut out); } }
-            2 if !self.plan.0.contains_key(&code) && self.held.contains_key(&code) => out.push(event),
+            2 if self.held.contains_key(&code) => {
+                if !self.plan.0.contains_key(&code) { out.push(event); }
+                else if code < KeyCode::BTN_0.0 {
+                    if let Some(&target) = self.held[&code].last() {
+                        if target < KeyCode::BTN_0.0 && !modifier(target) { out.push(key(target, 2)); }
+                    }
+                }
+            },
             _ => {}
         }
         out
@@ -152,4 +200,63 @@ mod tests {
         assert!(key_code("Ctrl").is_ok()); assert_eq!(key_code("Left").unwrap(),105);
         assert!(Plan::compile(&profile(&[(8,Action::KeyChord(vec!["Ctrl".into(),"KEY_LEFTCTRL".into()]))]),"fixture").is_err());
     }
+    fn keyboard_profile(actions: &[(&str, Action)]) -> Profile {
+        let mut p = profile(&[]);
+        p.bindings = actions.iter().map(|(name, action)| Binding { device_id: None, input: InputControl::Key((*name).into()), action: action.clone() }).collect(); p
+    }
+    #[test]
+    fn keyboard_compilation_normalizes_aliases_and_preserves_scope_and_input_kind() {
+        let mut p = keyboard_profile(&[("CapsLock", Action::KeyChord(vec!["Escape".into()])), ("KEY_RO", Action::Disabled), ("KEY_KPCOMMA", Action::KeyChord(vec!["AltGr".into(), "KEY_SEMICOLON".into()]))]);
+        p.bindings.push(Binding { device_id: Some("fixture".into()), input: InputControl::Key("KEY_CAPSLOCK".into()), action: Action::KeyChord(vec!["Ctrl".into(), "V".into()]) });
+        p.bindings.push(Binding { device_id: Some("other".into()), input: InputControl::Key("invalid".into()), action: Action::Disabled });
+        p.bindings.push(Binding { device_id: None, input: InputControl::MouseButton(8), action: Action::Disabled });
+        let plan = Plan::compile_keyboard(&p, "fixture").unwrap();
+        assert_eq!(plan.0[&58], vec![29, 47]);
+        assert!(plan.0[&89].is_empty());
+        assert_eq!(plan.0[&121], vec![100, 39]);
+        assert!(!plan.0.contains_key(&275));
+        p.bindings.push(Binding { device_id: Some("fixture".into()), input: InputControl::Key("capslock".into()), action: Action::Disabled });
+        assert!(Plan::compile_keyboard(&p, "fixture").unwrap_err().contains("mesma tecla física"));
+        assert!(Plan::compile_keyboard(&keyboard_profile(&[("A", Action::KeyChord(vec!["AltGr".into(), "KEY_RIGHTALT".into()]))]), "fixture").is_err());
+    }
+    #[test]
+    fn keyboard_repeats_target_only_and_does_not_chain_or_repeat_disabled_mouse_or_modifier_targets() {
+        let p = keyboard_profile(&[("CapsLock", Action::KeyChord(vec!["Ctrl".into(), "V".into()])), ("V", Action::KeyChord(vec!["C".into()])), ("A", Action::Disabled), ("B", Action::MouseButton(1)), ("C", Action::KeyChord(vec!["Shift".into()]))]);
+        let mut engine = Engine::new(Plan::compile_keyboard(&p, "fixture").unwrap());
+        assert_eq!(events(engine.event(key(58, 1))), vec![(29, 1), (47, 1)]);
+        assert_eq!(events(engine.event(key(58, 2))), vec![(47, 2)]);
+        assert_eq!(events(engine.event(key(58, 0))), vec![(47, 0), (29, 0)]);
+        for code in [30, 48, 46] {
+            engine.event(key(code, 1)); assert!(engine.event(key(code, 2)).is_empty()); engine.event(key(code, 0));
+        }
+        assert_eq!(events(engine.event(key(32, 1))), vec![(32, 1)]);
+        assert_eq!(events(engine.event(key(32, 2))), vec![(32, 2)]);
+        assert_eq!(events(engine.release_all()), vec![(32, 0)]);
+        assert!(engine.event(key(32, 2)).is_empty());
+    }
+    #[test]
+    fn physical_and_mapped_modifiers_share_ownership_and_profile_changes_block_held_keys() {
+        let p = keyboard_profile(&[("CapsLock", Action::KeyChord(vec!["Ctrl".into(), "V".into()]))]);
+        let mut engine = Engine::new(Plan::compile_keyboard(&p, "fixture").unwrap());
+        assert_eq!(events(engine.event(key(29, 1))), vec![(29, 1)]);
+        assert_eq!(events(engine.event(key(58, 1))), vec![(47, 1)]);
+        let next = keyboard_profile(&[("CapsLock", Action::KeyChord(vec!["Esc".into()]))]);
+        assert_eq!(events(engine.replace(Plan::compile_keyboard(&next, "fixture").unwrap())), vec![(47, 0)]);
+        assert!(engine.event(key(58, 2)).is_empty());
+        assert!(engine.event(key(58, 0)).is_empty());
+        assert_eq!(events(engine.event(key(58, 1))), vec![(1, 1)]);
+        assert_eq!(events(engine.release_all()), vec![(29, 0), (1, 0)]);
+    }
+    #[test]
+    fn emergency_chord_uses_physical_state_and_requires_a_fresh_pause_press() {
+        let mut chord = EmergencyChord::default();
+        assert!(!chord.event(key(KeyCode::KEY_LEFTCTRL.0, 1)));
+        assert!(!chord.event(key(KeyCode::KEY_RIGHTALT.0, 1)));
+        assert!(!chord.event(key(KeyCode::KEY_PAUSE.0, 2)));
+        assert!(chord.event(key(KeyCode::KEY_PAUSE.0, 1)));
+        assert!(!chord.event(key(KeyCode::KEY_PAUSE.0, 1)));
+        assert!(!chord.event(key(KeyCode::KEY_LEFTCTRL.0, 0)));
+        assert!(!chord.event(key(KeyCode::KEY_PAUSE.0, 1)));
+    }
+
 }

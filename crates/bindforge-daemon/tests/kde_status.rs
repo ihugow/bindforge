@@ -71,6 +71,14 @@ fn daemon_publishes_consumed_profiles_and_read_only_client_detects_disconnect() 
     let paused: (u32, bool, String, String) = control.call("GetInputStatus", &()).unwrap();
     assert_eq!((paused.0, paused.1, paused.2), (1, false, String::new()));
     assert!(control.call::<_, _, ()>("StartMouse", &("/dev/input/event0",)).is_err(), "paths must never select a device");
+    let keyboard: (u32, bool, String, String) = control.call("GetKeyboardStatus", &()).unwrap();
+    assert_eq!((keyboard.0, keyboard.1, keyboard.2), (1, false, String::new()));
+    assert!(control.call::<_, _, ()>("StartKeyboard", &("/dev/input/event0",)).is_err());
+    for invalid in ["", "bad\nID", &"x".repeat(129)] {
+        let error = control.call::<_, _, ()>("StartKeyboard", &(invalid,)).unwrap_err().to_string();
+        assert!(error.contains("InvalidArgs"));
+    }
+    control.call::<_, _, ()>("PauseKeyboard", &()).unwrap();
     let inventory = remap_ipc::dbus::read_devices_at(address).unwrap();
     assert!(inventory.iter().all(|device| !device.id.is_empty() && !device.name.is_empty()));
     let battery_proxy = Proxy::new(&kwin, SERVICE, PATH, remap_ipc::dbus::DEVICES_INTERFACE).unwrap();

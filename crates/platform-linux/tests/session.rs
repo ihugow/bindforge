@@ -1,6 +1,6 @@
 #![cfg(all(target_os = "linux", feature = "dbus", feature = "native-input"))]
 use std::{collections::HashMap, io::{BufRead, BufReader, Read}, os::{fd::OwnedFd, unix::net::UnixStream}, process::{Child, Command, Stdio}, sync::{Arc, Mutex}, time::{Duration, Instant}};
-use platform_linux::native::{session::SessionGuard, MouseSession};
+use platform_linux::native::{session::SessionGuard, InputSession};
 use remap_core::InputRemapper;
 use zbus::{blocking::{connection::Builder, Connection}, zvariant::{OwnedObjectPath, Value}};
 const SERVICE: &str = "org.freedesktop.login1";
@@ -50,9 +50,10 @@ fn wait_for(mut predicate: impl FnMut() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(5);
     while !predicate() { assert!(Instant::now() < deadline, "session state did not converge"); std::thread::sleep(Duration::from_millis(10)); }
 }
-fn allowed(input: &MouseSession) -> bool {
+fn allowed(input: &InputSession) -> bool {
     input.focus(true);
     input.start("missing-device").unwrap_err().contains("cadastrado")
+        && input.start_keyboard("missing-device").unwrap_err().contains("cadastrado")
 }
 fn changed(connection: &Connection, name: &str, value: bool) {
     connection.emit_signal(None::<&str>, SESSION_PATH, "org.freedesktop.DBus.Properties", "PropertiesChanged",
@@ -69,13 +70,15 @@ fn lock_sleep_authentication_owner_recovery_and_inhibitor_lifecycle() {
     let bus = Bus::start();
     let state = Arc::new(Mutex::new(State { locked: true, ..Default::default() }));
     let logind = service(&bus.address, &state);
-    let mut input = MouseSession::default();
+    let mut input = InputSession::default();
     input.apply_profile(&remap_core::demo_profiles().profiles()[0]).unwrap();
     let guard = SessionGuard::at_address(input.clone(), &bus.address).unwrap();
     wait_for(|| input.status().message.contains("bloqueio"));
     assert!(input.start("missing-device").unwrap_err().contains("bloqueio"));
+    assert!(input.start_keyboard("missing-device").unwrap_err().contains("bloqueio"));
     input.pause(); input.focus(true); // Neither a manual pause nor focus bypasses the gate.
     assert!(input.start("missing-device").unwrap_err().contains("bloqueio"));
+    assert!(input.start_keyboard("missing-device").unwrap_err().contains("bloqueio"));
     state.lock().unwrap().locked = false;
     changed(&logind, "LockedHint", false);
     wait_for(|| allowed(&input));
@@ -91,6 +94,7 @@ fn lock_sleep_authentication_owner_recovery_and_inhibitor_lifecycle() {
     wait_for(|| closed(&mut state.lock().unwrap().readers[0]));
     input.focus(true);
     assert!(input.start("missing-device").unwrap_err().contains("suspensão"));
+    assert!(input.start_keyboard("missing-device").unwrap_err().contains("suspensão"));
     sleep(&logind, &state, false);
     wait_for(|| allowed(&input));
     assert_eq!(state.lock().unwrap().readers.len(), 2);
@@ -120,7 +124,7 @@ fn lock_sleep_authentication_owner_recovery_and_inhibitor_lifecycle() {
 #[test]
 fn unavailable_or_denied_monitor_blocks_activation_and_recovers() {
     let mut bus = Bus::start();
-    let input = MouseSession::default();
+    let input = InputSession::default();
     let guard = SessionGuard::at_address(input.clone(), &bus.address).unwrap();
     wait_for(|| input.status().message.contains("indisponível"));
     let state = Arc::new(Mutex::new(State { deny_inhibit: true, ..Default::default() }));

@@ -2,7 +2,7 @@
 use std::{sync::{Arc, Condvar, Mutex}, thread, time::{Duration, Instant}};
 use futures_lite::{future::block_on, StreamExt};
 use zbus::{blocking::{connection::Builder, Connection, Proxy}, message::Type, zvariant::{OwnedFd, OwnedObjectPath}, MatchRule, MessageStream};
-use super::{MouseSession, SessionRestriction};
+use super::{InputSession, SessionRestriction};
 
 const SERVICE: &str = "org.freedesktop.login1";
 const PATH: &str = "/org/freedesktop/login1";
@@ -12,10 +12,10 @@ type Stop = Arc<(Mutex<bool>, Condvar)>;
 
 pub struct SessionGuard { stop: Stop, worker: Option<thread::JoinHandle<()>> }
 impl SessionGuard {
-    pub fn system(input: MouseSession) -> Result<Self, String> { Self::start(input, None) }
+    pub fn system(input: InputSession) -> Result<Self, String> { Self::start(input, None) }
     /// Explicit system-bus replacement for isolated tests; no session-bus overrides.
-    pub fn at_address(input: MouseSession, address: &str) -> Result<Self, String> { Self::start(input, Some(address.into())) }
-    fn start(input: MouseSession, address: Option<String>) -> Result<Self, String> {
+    pub fn at_address(input: InputSession, address: &str) -> Result<Self, String> { Self::start(input, Some(address.into())) }
+    fn start(input: InputSession, address: Option<String>) -> Result<Self, String> {
         input.restrict_session(Some(SessionRestriction::Checking));
         let stop: Stop = Arc::new((Mutex::new(false), Condvar::new()));
         let stopping = stop.clone();
@@ -46,7 +46,7 @@ fn wait(stop: &Stop, duration: Duration) {
     let _ = stop.1.wait_timeout_while(lock, duration, |v| !*v).unwrap_or_else(|e| e.into_inner());
 }
 // This guard also pauses on panic, before the inhibitor/connection are dropped.
-struct PauseOnDrop(MouseSession);
+struct PauseOnDrop(InputSession);
 impl Drop for PauseOnDrop { fn drop(&mut self) { self.0.restrict_session(Some(SessionRestriction::Unavailable)); } }
 fn proxy<'a>(connection: &'a Connection, owner: &'a str, path: &'a str, interface: &'a str) -> zbus::Result<Proxy<'a>> {
     zbus::blocking::proxy::Builder::new(connection).destination(owner)?.path(path)?.interface(interface)?
@@ -56,9 +56,9 @@ fn owner(connection: &Connection) -> zbus::Result<String> {
     Ok(zbus::blocking::fdo::DBusProxy::new(connection)?.get_name_owner(SERVICE.try_into().expect("valid name"))?.to_string())
 }
 fn inhibit(manager: &Proxy<'_>) -> zbus::Result<OwnedFd> {
-    manager.call("Inhibit", &( "sleep", "BindForge", "Liberar as ações e a captura do mouse antes de suspender", "delay" ))
+    manager.call("Inhibit", &( "sleep", "BindForge", "Liberar as ações e a captura de mouse e teclado antes de suspender", "delay" ))
 }
-fn refresh(input: &MouseSession, manager: &Proxy<'_>, session: &Proxy<'_>, sleeping: &mut bool) -> zbus::Result<()> {
+fn refresh(input: &InputSession, manager: &Proxy<'_>, session: &Proxy<'_>, sleeping: &mut bool) -> zbus::Result<()> {
     if owner(manager.connection())? != manager.destination().as_str() {
         return Err(zbus::Error::Failure("logind owner changed".into()));
     }
@@ -71,7 +71,7 @@ fn refresh(input: &MouseSession, manager: &Proxy<'_>, session: &Proxy<'_>, sleep
         else if !active { Some(SessionRestriction::Inactive) } else { None });
     Ok(())
 }
-fn observe(input: &MouseSession, stop: &Stop, address: Option<&str>) -> Result<(), String> {
+fn observe(input: &InputSession, stop: &Stop, address: Option<&str>) -> Result<(), String> {
     let result = (|| -> zbus::Result<()> {
         let builder = match address { Some(address) => Builder::address(address)?, None => Builder::system()? };
         let connection = builder.method_timeout(Duration::from_secs(2)).build()?;

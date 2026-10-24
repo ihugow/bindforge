@@ -72,10 +72,16 @@ fn run_kde(once: bool) -> Result<(), String> {
         .map_err(|e| format!("Cannot register shutdown signals: {e}"))?;
     let path = remap_config::config_path()?;
     let mut config = remap_config::load(&path)?;
-    let input = platform_linux::native::MouseSession::default();
+    let input = platform_linux::native::InputSession::with_access_policy(std::sync::Arc::new(|device| {
+        let kind = match device.kind { platform_linux::native::InputKind::Mouse => bindforge_access::Kind::Mouse, platform_linux::native::InputKind::Keyboard => bindforge_access::Kind::Keyboard };
+        let target = bindforge_access::inspect(&device.interface_id, kind)?;
+        bindforge_access::ensure_not_revoked(&target)?;
+        Ok(std::sync::Arc::new(move || bindforge_access::ensure_not_revoked(&target)))
+    }));
     let _session_guard = platform_linux::native::session::SessionGuard::system(input.clone())?;
-    let registrations = |config: &remap_config::Config| config.devices.iter().filter(|d| d.kind == "mouse").map(|d| platform_linux::native::MouseRegistration {
+    let registrations = |config: &remap_config::Config| config.devices.iter().map(|d| platform_linux::native::DeviceRegistration {
         id: d.id.clone(), name: d.name.clone(), interface_id: d.interface_id.clone(),
+        kind: if d.kind == "keyboard" { platform_linux::native::InputKind::Keyboard } else { platform_linux::native::InputKind::Mouse },
     }).collect();
     input.devices(registrations(&config));
     let mut switcher = ProfileSwitcher::new(config.validate()?, input.clone());
@@ -85,8 +91,8 @@ fn run_kde(once: bool) -> Result<(), String> {
     let mut last_event = WindowEvent::NoActiveWindow;
     let mut focus = FocusState::Waiting;
     let mut last_error = None;
-    let mut last_input_state = input.status();
-    eprintln!("Mouse backend ready but PAUSED: activate one registered mouse explicitly in the app.");
+    let mut last_input_state = input.statuses();
+    eprintln!("Input backend ready but PAUSED: activate a registered mouse or keyboard explicitly in the app.");
     let result = (|| {
         switcher.handle(&last_event)?;
         println!("simulation profile={}", switcher.active_id().unwrap_or("default"));
@@ -126,10 +132,10 @@ fn run_kde(once: bool) -> Result<(), String> {
                     Err(e) => { input.pause_for_error(format!("Remapeamento pausado ao trocar de perfil: {e}")); switcher.handle(&last_event)? }
                 }
             } else { false };
-            let input_state = input.status();
+            let input_state = input.statuses();
             let input_changed = input_state != last_input_state;
             last_input_state = input_state.clone();
-            let simulation = !input_state.active;
+            let simulation = !input_state.iter().any(|s| s.active);
             let mode_changed = status.snapshot().simulation != simulation;
             status.set_simulation(simulation);
             if changed || reloaded { println!("{} profile={}", if simulation { "simulation" } else { "native" }, switcher.active_id().unwrap_or("default")); }
@@ -167,10 +173,15 @@ fn run() -> Result<(), String> {
             platform_linux::native::isolated_self_test()?;
             println!("PASS: isolated virtual input -> remapper -> virtual output, V press/release verified."); Ok(())
         }
+        #[cfg(all(feature = "kde-dbus", target_os = "linux"))]
+        [flag] if flag == "--keyboard-self-test" => {
+            platform_linux::native::isolated_keyboard_self_test()?;
+            println!("PASS: isolated keyboard mapping, repeat and held-key profile switch verified."); Ok(())
+        }
         [flag] if flag == "--stdin" => drive(&mut StdinMonitor(io::stdin().lock())),
         #[cfg(all(feature = "kde-dbus", target_os = "linux"))]
         [flag] if flag == "--kde" => {
-            eprintln!("KDE focus bridge: automatic session D-Bus; mouse backend starts paused.");
+            eprintln!("KDE focus bridge: automatic session D-Bus; mouse and keyboard backends start paused.");
             run_kde(false)
         }
         #[cfg(all(feature = "kde-dbus", target_os = "linux"))]
@@ -180,7 +191,7 @@ fn run() -> Result<(), String> {
         }
         [flag] if flag == "--kde" => Err("KDE support requires Linux and --features kde-dbus".into()),
         [flag] if flag == "--help" || flag == "-h" => {
-            println!("bindforge-daemon [--stdin | --kde [--once] | --list-devices | --native-self-test]\nDefault: finite demo. --stdin: one exact app ID per line; blank line clears focus.\nDefault and --stdin simulate only. --kde: live focus bridge with the native mouse backend initially PAUSED; activate a saved mouse explicitly in the app. --native-self-test: exclusively isolated virtual fixtures, no physical mouse. EOF resets and exits. --once exits after the first authenticated focus event (no timeout)."); Ok(())
+            println!("bindforge-daemon [--stdin | --kde [--once] | --list-devices | --native-self-test | --keyboard-self-test]\nDefault: finite demo. --stdin: one exact app ID per line; blank line clears focus.\nDefault and --stdin simulate only. --kde: live focus bridge with native mouse and keyboard initially PAUSED; activate saved devices explicitly in the app. --native-self-test / --keyboard-self-test: exclusively isolated virtual fixtures, no physical devices. EOF resets and exits. --once exits after the first authenticated focus event (no timeout)."); Ok(())
         }
         _ => Err("unknown arguments; use --help".into()),
     }
