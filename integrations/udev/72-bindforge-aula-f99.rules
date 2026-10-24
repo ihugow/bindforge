@@ -1,0 +1,4 @@
+# Optional Aula F99 permission for the active local desktop session.
+# Matches the keyboard interface (00) of the 3554:fa09 USB wireless receiver.
+# Install before 73-seat-late.rules so logind/udev can apply the uaccess ACL.
+ACTION=="add|change", SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_BUS}=="usb", ENV{ID_VENDOR_ID}=="3554", ENV{ID_MODEL_ID}=="fa09", ENV{ID_USB_INTERFACE_NUM}=="00", ENV{ID_INPUT_KEYBOARD}=="1", TAG+="uaccess"

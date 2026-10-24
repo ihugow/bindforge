@@ -543,3 +543,88 @@ recusa de iniciar ao lado do daemon anterior, usando somente arquivos e D-Bus
 isolados. TypeScript/Vite, shell Tauri e RPM release compilados. A sessão real e o
 daemon anterior não foram interrompidos. Interface e daemon devem ser atualizados
 juntos para usar o novo protocolo D-Bus.
+
+
+## Editor visual de teclado — 23/10/2026
+
+- `npm test`: 28 testes passaram, incluindo geometria ANSI/ISO/ABNT2,
+  precedência de ações específicas e preservação de mouse/outras interfaces.
+- `npm run build`: TypeScript e build Vite passaram.
+- Chromium headless com os componentes reais e API de perfis simulada: os três
+  layouts abriram pela Home; seleção, atalho, salvamento, reabertura e descarte
+  passaram. Navegação por setas/Enter/Tab e modificadores esquerdo/direito passaram.
+- Inspeção visual dos três layouts e de viewport 390×844: rolagem contida no
+  desenho, sem transbordamento horizontal do modal; seleção do numérico após
+  rolagem passou. Nenhum erro JavaScript observado.
+- A geometria ABNT2 e suas legendas foram conferidas nas definições XKB locais
+  `/usr/share/X11/xkb/geometry/pc` e `/usr/share/X11/xkb/symbols/br`.
+- Não houve ativação de captura física, alteração de permissões ou teste de
+  persistência pelo shell Tauri nesta rodada. A execução de remapeamentos de
+  teclado no daemon permanece pendente.
+
+
+## Backend físico de teclado — 23/10/2026
+
+- `cargo test --workspace --all-features --locked`: 74 testes passaram. A cobertura
+  inclui compilação normalizada de mapas, repetição, modificadores compartilhados,
+  liberação ao trocar mapas, desativação, emergência física, capacidades de teclado,
+  estados independentes de mouse/teclado e pausa de ambos em falhas/restrições.
+- O teste de daemon em bus privado consulta GetKeyboardStatus, recusa caminhos e
+  IDs inválidos em StartKeyboard e executa PauseKeyboard. O teste de logind exercita
+  o bloqueio das duas ativações em lock/suspend e o retorno sem autoativação.
+- `npm test`: 28 testes passaram; `npm run build` passou.
+- `cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml --locked`: passou,
+  incluindo os novos comandos e os controles independentes da bandeja.
+- Chromium headless, componentes reais e API simulada: seleção apenas de cadastros
+  de teclado, ativação/pausa independentes do mouse, erro de permissão visível,
+  bloqueio sem foco e layout 390×844 sem transbordamento horizontal passaram.
+- `--keyboard-self-test`: EACCES ao abrir `/dev/input/event25`, antes de qualquer
+  evento emitido. As fixtures foram descartadas; nenhum teclado físico capturado.
+- Pendente: validação em teclado real, comportamento de repetição/LEDs no KDE,
+  desconexão com tecla mantida e retorno de lock/suspend com o teclado capturado.
+  Não foram alteradas permissões, ACLs, grupos ou regras udev nesta rodada.
+
+## Gerenciar acesso por dispositivo — 24/10/2026
+
+- `cargo test --workspace --all-features --locked --offline`: 83 testes passaram,
+  incluindo 7 testes da biblioteca de acesso e 2 testes do CLI administrativo.
+- `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --offline`:
+  4 testes passaram, incluindo cancelamento/recusa/resposta inválida do helper e
+  rejeição de executáveis administrativos não confiáveis.
+- `npm test`: 28 testes passaram; TypeScript/Vite passaram no build do RPM.
+- Chromium headless na fixture de componentes reais: concessão, reaplicação,
+  remoção com reconexão, cancelamento, erro, componente ausente, dispositivo
+  desconectado e bloqueio durante autenticação pendente passaram. Viewport 390×844
+  sem transbordamento horizontal do modal; nenhum erro JavaScript observado.
+- Prévia somente de metadados do Logitech G PRO Wireless e Aula F99: regras geradas
+  com identidade/interface específica; `udevadm verify` passou nas duas.
+- Política polkit passou em parse XML e validação com o DTD instalado localmente
+  (sem buscar o DOCTYPE remoto). Métodos usam exec.path e exec.argv1 separados
+  para grant/revoke, com auth_admin somente na sessão ativa.
+- `npm run package:fedora --prefix apps/desktop`: RPM gerado. Verificados helper
+  root:root 0755, política root:root 0644 e dependências polkit/kmod. O conteúdo
+  extraído do payload corresponde exatamente ao helper compilado e à política.
+- Nenhum helper ou política foi instalado pelo agente. Nenhuma concessão/revogação
+  real foi feita. A autenticação no KDE e o ciclo grant/revoke/reconectar com o
+  componente instalado continuam pendentes de validação administrativa do usuário.
+
+
+## Revogação bloqueia nova ativação sem reconexão — 24/10/2026
+
+O usuário reproduziu que remover o acesso pausava o teclado, mas permitia reativá-lo
+antes de reconectar. A inspeção confirmou regra manual já desativada, regra gerenciada
+do teclado ausente e ACL de leitura ainda aplicado ao nó evdev. O daemon antigo
+consultava apenas o acesso do sistema; a remoção de udev não apagava esse ACL.
+
+A correção grava um registro administrativo `.revoked` por identidade/interface.
+A política de captura do daemon o verifica antes da abertura/grab e periodicamente
+durante o worker (100 ms), recusando ativação por UI, bandeja ou D-Bus. Uma nova
+concessão só limpa a revogação após aplicar a regra com sucesso; rollback preserva
+a decisão anterior. O shell confirma a pausa novamente após a autenticação.
+A UI mostra Revogada · ativação bloqueada mesmo com entrada ainda legível.
+
+Novos testes cobrem registro persistente/rollback/reconcessão, recusa dos dois tipos
+antes de abrir um dispositivo, verificação periódica sem evento de tecla e recusa
+via bus D-Bus privado. Nenhuma captura física nem alteração administrativa real foi
+feita pelo agente. O novo comportamento exige reinstalar helper/interface/daemon e
+reiniciar o daemon; revogações anteriores precisam ser refeitas após a atualização.

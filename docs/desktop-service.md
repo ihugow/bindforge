@@ -108,3 +108,12 @@ aguarde a atualização do menu. Por fim, use **Sair da interface** e confirme q
 e que `systemctl --user status bindforge-daemon.service` mantém o serviço ativo,
 caso ele já estivesse em execução. Essa verificação visual ainda está pendente;
 `cargo check` e os testes do shell não exercitam o painel do KDE.
+
+
+## Componente administrativo de acesso
+
+O RPM também inclui bindforge-device-access em /usr/libexec/bindforge e a política
+org.bindforge.device-access.policy em /usr/share/polkit-1/actions. A compilação e a
+instalação não autorizam dispositivos automaticamente. Gerenciar acesso usa esse
+helper somente após autenticação explícita; o serviço do usuário continua sem root.
+As dependências do pacote incluem polkit e kmod. Veja [autorizações](device-access.md).

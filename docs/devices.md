@@ -4,13 +4,15 @@
 
 O inventário identifica interfaces de mouse/teclado e as apresenta na UI sem abrir
 fluxos de eventos. O backend experimental de captura é separado e só inicia por
-ativação explícita; veja [native-input.md](native-input.md). Não há autorização extra, abertura de
-`/dev/input/event*`, `/dev/uinput`, alteração de grupos ou instalação de regras udev.
+ativação explícita; veja [native-input.md](native-input.md). A consulta do inventário
+não exige autorização extra, não abre fluxos de eventos nem instala regras udev.
+A autorização para remapear é um fluxo separado, descrito em
+[acesso aos dispositivos](device-access.md).
 O adaptador usa libudev e atributos sysfs apenas para consulta de metadados.
 
 O inventário é um snapshot: carregamento ao conectar ao daemon e botão **Atualizar
-lista** para novas consultas. Hotplug automático, identidade persistente e
-remapeamento físico ficam para etapas seguintes. O cadastro manual e ações
+lista** para novas consultas. Hotplug automático e identidade persistente do
+cadastro ficam para etapas seguintes. O cadastro manual e ações
 específicas por interface estão implementados, com o limite de identidade abaixo.
 
 ## Arquitetura
@@ -50,7 +52,8 @@ como virtual somente por residir sob `/sys/devices/virtual/misc`.
 
 Nome e IDs de fabricante/produto vêm de propriedades/atributos. Nomes são limitados
 a 256 caracteres, sem controles. IDs hexadecimais ausentes/inválidos são desconhecidos,
-não valores fabricados. Números de série não são coletados. A ordenação usa nome e ID.
+não valores fabricados. Números de série não são coletados pelo inventário; o
+helper de autorização pode usá-los para delimitar uma regra de acesso. A ordenação usa nome e ID.
 
 ## Identidade e duplicatas
 
@@ -65,6 +68,40 @@ USB, pois um mesmo receptor pode representar mouse e teclado distintos. Um mouse
 gamer pode expor funções de teclado e aparecer como composto. A contagem na UI é
 de interfaces, não de periféricos físicos. Não existe promessa de compatibilidade
 de remapeamento, firmware, DPI ou RGB a partir de uma entrada aparecer na lista.
+
+## Compatibilidade de remapeamento
+
+A implementação é genérica: usa interfaces padrão de entrada do Linux
+(evdev/uinput), em vez de um driver próprio para cada marca. Um modelo pode
+funcionar sem uma integração específica, desde que exponha os eventos e as
+capacidades aceitos pelo backend. **Não há garantia de suporte universal.**
+Aparecer no inventário ou receber autorização de acesso não comprova que todas
+as funções do dispositivo possam ser remapeadas.
+
+- **Ambiente:** o alvo é Fedora KDE Plasma 6 em Wayland. Outros ambientes Linux
+  ainda exigem validação; Windows e macOS não têm backend implementado.
+- **Mouse:** são remapeáveis os oito códigos de botão atualmente suportados:
+  esquerdo, direito, central e os códigos simbólicos 8 a 12. O cadastro permitir
+  declarar até 32 botões não amplia essa capacidade do backend. Botões extras de
+  fabricantes podem emitir outros eventos ou depender de protocolos próprios.
+- **Teclado:** o remapeamento usa códigos de teclas físicos Linux. O editor oferece
+  ANSI 104, ISO 105 e ABNT2 107; ele não altera o idioma/layout configurado no
+  sistema. Teclas Fn, macros de hardware, teclas especiais e funções exclusivas do
+  fabricante podem não gerar eventos utilizáveis ou não estar disponíveis no editor.
+- **Conexão:** USB, receptor sem fio ou Bluetooth não garantem, por si só,
+  compatibilidade. Cada interface precisa satisfazer a validação do backend;
+  nem todo tipo de conexão foi testado fisicamente.
+- **Funções do fabricante:** ajuste de DPI, RGB, atualização de firmware e
+  programação da memória interna não estão implementados.
+
+O Logitech G PRO Wireless tem [validação física documentada](hardware-validation.md)
+para atalhos, pausa, troca de perfil e recuperação. O Aula F99 tem confirmação
+manual de remapeamento básico; isso não equivale à validação completa de repetição,
+bloqueio/suspensão e recuperação. Esses resultados não abrangem outros modelos.
+
+A autorização persistente resolve o acesso a uma interface compatível. Ela não
+adiciona suporte a um botão, tecla ou protocolo ausente. Os detalhes técnicos e as
+restrições de captura estão em [backend de entrada](native-input.md).
 
 ## Contrato D-Bus
 
@@ -108,7 +145,9 @@ A aba abre com um cartão **+ Configurar dispositivo**, seguido dos dispositivos
 cadastrados. O modal recebe nome, tipo, propriedades e uma interface compatível.
 Mouses têm de 3 a 32 botões (incluindo clique da roda, excluindo rolagem); teclados
 usam layout físico ABNT2, ANSI ou ISO, sem mudar o layout do sistema. O editor de
-teclas ainda não está implementado. A lista técnica de interfaces fica em details.
+teclas fica em Início, no cartão do teclado, e salva ações por perfil/interface.
+A captura física é ativada separadamente em Início → Remapeamento do teclado;
+o remapeamento básico foi confirmado no Aula F99, com validação completa pendente. A lista técnica de interfaces fica em details.
 
 O array opcional `devices` integra a configuração versão 1. Configurações anteriores
 sem esse campo carregam como lista vazia. O backend valida até 64 dispositivos,
@@ -151,3 +190,12 @@ A leitura se renova a cada 60 segundos nas abas visíveis, ao voltar à janela e
 pelos botões de atualização. Falhas de leitura removem a indicação anterior.
 O Logitech G PRO Wireless desta máquina fornece bateria via HID++; o Aula F99
 no receptor 2,4 GHz não fornece essa informação pela interface padrão atualmente.
+
+
+## Gerenciar acesso
+
+No cadastro salvo ou no painel de remapeamento, Gerenciar acesso consulta a entrada,
+a saída virtual e a autorização persistente criada pelo BindForge. A concessão e a
+remoção usam autenticação administrativa do sistema, com regras derivadas do
+dispositivo escolhido, sem regras genéricas por todos os teclados/mouses.
+Veja [fluxo e limites das autorizações](device-access.md).

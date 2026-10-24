@@ -4,15 +4,33 @@ Base de um gerenciador de perfis para mouse/teclado em Rust. Primeiro alvo:
 **Fedora KDE Plasma 6, sessão Wayland**. Windows e macOS são extensões futuras.
 Implementação independente, sem código, assets ou protocolos proprietários do G Hub.
 
-**Estado: seleção automática de perfis e backend experimental de mouse no Linux.**
-O daemon inicia com entrada pausada; a ativação de um mouse cadastrado é explícita
-na UI. Perfis e cadastros são persistidos em JSON, com detecção de janelas pelo KWin.
-Teclado físico e macros executáveis ainda não são remapeados. O teste de kernel
+**Estado: seleção automática de perfis e backend experimental de mouse e teclado no Linux.**
+O daemon inicia com entrada pausada; mouse e teclado cadastrados são ativados
+separadamente pela UI. Perfis e cadastros são persistidos em JSON, com detecção de janelas pelo KWin.
+O teclado Aula F99 teve o remapeamento básico confirmado em uso físico; a validação
+completa de repetição, suspensão e recuperação ainda está pendente.
+Macros executáveis não são suportadas. O teste de kernel
 isolado encontrou EACCES nos novos nós virtuais. A rodada física do Logitech
 G PRO Wireless confirmou atalhos, pausa/reativação, troca de perfil com botão
 pressionado, desconexão e encerramento/reinício do daemon. Evidências e limites
 estão no [registro da rodada física](docs/hardware-validation.md).
 Veja [escopo e validação do backend](docs/native-input.md).
+
+## Compatibilidade de dispositivos
+
+O BindForge oferece **remapeamento experimental de mouses e teclados compatíveis
+no KDE Wayland, com modelos validados**. A implementação usa interfaces padrão de
+entrada do Linux e não depende de uma marca específica, mas isso não garante
+compatibilidade com qualquer modelo ou com todas as funções de um periférico.
+
+O ambiente alvo é Fedora KDE Plasma 6 com Wayland. O Logitech G PRO Wireless tem
+[uma rodada física documentada](docs/hardware-validation.md); o Aula F99 tem
+confirmação de remapeamento básico. Outros modelos e ambientes exigem validação.
+Windows e macOS ainda não são suportados.
+
+Veja os [critérios e limites de compatibilidade](docs/devices.md#compatibilidade-de-remapeamento),
+incluindo botões adicionais, teclas especiais, layouts e a diferença entre
+autorizar acesso e oferecer suporte a uma função.
 
 ## Estrutura e arquitetura
 
@@ -23,7 +41,8 @@ crates/remap-config/        configuração versionada, validação e gravação 
 crates/remap-ipc/           contrato de estado versionado e transporte D-Bus opcional
 crates/platform-kde/        tradução KWin e monitor D-Bus de sessão opcional
 crates/platform-linux/      metadados de dispositivos e identidade Steam do Gamescope
-crates/bindforge-daemon/        processo separado; monitor stdin/demo e remapper simulado
+crates/bindforge-daemon/    processo separado; monitor e remapeamento nativo/simulado
+crates/bindforge-access/    política de acesso e helper administrativo por polkit
 integrations/kwin/          fonte da ponte temporária incorporada ao daemon
 examples/focus-events.txt   eventos sintéticos para reprodução
 ```
@@ -32,19 +51,19 @@ Fluxo implementado: `stdin/demo -> WindowMonitor -> ProfileSwitcher -> DryRunRem
 A UI Tauri chama o core para uma prévia e consulta `Status1.GetStatus` no daemon
 para o painel de estado. O painel e a prévia são independentes.
 Com a feature `kde-dbus`: `KWin -> D-Bus de sessão -> daemon -> DryRunRemapper`.
-No modo `--kde`, o backend experimental aplica as ações ao mouse após ativação
-explícita; enquanto pausado, a seleção de perfis continua sem remapear entrada.
+No modo `--kde`, o backend experimental aplica as ações ao mouse e ao teclado após ativação
+explícita de cada um; enquanto pausado, a seleção de perfis continua sem remapear entrada.
 
 O core define `Device`, `DeviceKind`, `Binding`, `InputControl`, `Action`, `Profile`,
 `AppRule`, `ActiveWindow` e as abstrações `WindowMonitor` e `InputRemapper`.
-IDs de dispositivo são fornecidos pelo adaptador; nomes de teclas ainda são simbólicos
-(não códigos evdev/HID validados). O backend futuro deverá validar ações e capacidades
-antes de aplicar qualquer mapa. Não existe ação de execução de shell.
+IDs de dispositivo são fornecidos pelo adaptador. O backend Linux traduz nomes
+de teclas para códigos físicos evdev e valida ações e capacidades da interface
+antes de aplicar o mapa. Não existe ação de execução de shell.
 
 `WindowMonitor` diferencia ausência de janela de fim de stream. O `ProfileSwitcher`
 aplica apenas mudanças de perfil e atualiza seu estado após sucesso. Falhas são
 propagadas e podem ser tentadas novamente. `InputRemapper` exige substituição atômica
-e reset; há implementações de simulação e do backend experimental de mouse Linux.
+e reset; há implementações de simulação e do backend experimental de entrada Linux.
 
 O desktop tem seu próprio manifest Cargo e está **excluído do workspace raiz** para
 que testes do core/daemon não exijam GTK/WebKit ou acesso à rede. Ele usa o mesmo
@@ -55,7 +74,8 @@ que testes do core/daemon não exijam GTK/WebKit ou acesso à rede. Ele usa o me
 Requer Rust/Cargo **1.87+** para o workspace atual (core isolado: MSRV declarado 1.82).
 O core/daemon não precisam de bibliotecas gráficas. A enumeração Linux usa libudev;
 para compilar esse adaptador no Fedora, instale `systemd-devel` se estiver ausente.
-Os executáveis sempre rodam como usuário comum. No primeiro checkout, execute
+A interface e o daemon rodam como usuário comum. Somente o helper de autorização
+executa uma operação administrativa curta via polkit; veja [acesso aos dispositivos](docs/device-access.md). No primeiro checkout, execute
 `cargo fetch --locked` para preencher o cache de resolução; depois os comandos
 abaixo podem usar `--offline`. A feature D-Bus adiciona zbus. O core isolado não tem dependências obrigatórias;
 a persistência habilita sua feature opcional serde.
@@ -124,7 +144,7 @@ npm run dev
 Abra http://127.0.0.1:1420. No navegador, a interface mostra os limites do protótipo;
 as consultas ao core e ao daemon só são habilitadas no shell nativo. Nele, o
 inventário apresenta dispositivos reais e o remapeamento depende da ativação
-explícita de um mouse cadastrado. O navegador não remapeia entrada.
+explícita de mouse ou teclado cadastrado. O navegador não remapeia entrada.
 
 ```bash
 npm run build
@@ -147,7 +167,7 @@ Isso é preparação de ferramentas de desenvolvimento; a aplicação sempre rod
 usuário comum. Consulte as [instruções oficiais do Tauri](https://v2.tauri.app/start/prerequisites/)
 para seu Fedora, especialmente Kinoite/OSTree. Nenhum pacote do sistema é instalado
 por este projeto. O shell não tem plugins genéricos de shell/processo/filesystem. Comandos tipados
-oferecem prévia, perfis, inventário, ativação/pausa do mouse e gerenciamento do
+oferecem prévia, perfis, inventário, ativação/pausa de mouse e teclado e gerenciamento do
 serviço do usuário. A assinatura de estado usa sinais D-Bus e um canal Tauri;
 o estado não é consultado periodicamente pela interface.
 
@@ -159,11 +179,11 @@ sua sessão gráfica e continua funcionando depois que a janela é fechada.
 O ícone do BindForge permanece na bandeja do sistema enquanto a interface estiver
 em execução, inclusive com a janela aberta. Fechar a janela apenas a oculta;
 use **Abrir BindForge** no menu do ícone para restaurá-la. O menu também oferece
-**Iniciar remapeamento**, com os mouses cadastrados para escolher, e **Pausar
-remapeamento**. **Sair da interface** encerra somente a interface e seu ícone,
+**Iniciar remapeamento do mouse/teclado**, com os cadastros correspondentes para
+escolher, e **Pausar remapeamento do mouse/teclado**. **Sair da interface** encerra somente a interface e seu ícone,
 mantendo o daemon em execução. Para encerrar o daemon, use **Parar serviço**.
 Iniciar, reiniciar e retornar de bloqueio/suspensão mantêm a captura pausada até
-ativação explícita do mouse.
+ativação explícita de cada dispositivo.
 
 **Iniciar serviço ao entrar no KDE** é opcional e vem desativado. Marcar prepara
 o próximo login sem iniciar o serviço agora; desmarcar não para uma execução atual.
@@ -206,12 +226,55 @@ em edição escolhido; as alterações salvas ficam disponíveis nas duas telas.
 Ações específicas de um dispositivo substituem a ação geral para o mesmo controle.
 Remover uma ação específica volta à geral; remover a geral restaura a função
 original, mantendo eventuais exceções específicas. O mapa de cada perfil continua
-independente. Teclas são símbolos, ainda sem validação de códigos físicos.
+independente. O editor do mouse aceita nomes simbólicos para as teclas de destino;
+o editor de teclado usa códigos físicos no rascunho.
 
 **Salvar edita a configuração. A entrada física só é capturada após ativação explícita.**
-O teclado tem representação visual e aviso de que seu editor será uma próxima etapa.
+O teclado abre um editor com teclas selecionáveis para ABNT2, ANSI e ISO.
+Escolha a tecla, o destino e modificadores opcionais; as alterações são salvas por
+interface e perfil. O desenho preserva as proporções com rolagem horizontal em
+telas estreitas. Ative a captura física em **Início → Remapeamento do teclado**.
 A identificação de dispositivos continua sendo de interfaces, com IDs locais à
 conexão, conforme [docs/devices.md](docs/devices.md).
+
+## Autorizar acesso aos dispositivos
+
+Em **Dispositivos → editar cadastro → Gerenciar acesso**, consulte as permissões,
+confira a interface detectada e clique em **Conceder acesso**. A janela de autenticação
+do sistema autoriza somente a criação de regras específicas e o acesso à saída virtual;
+a interface e o daemon continuam como usuário comum. O mesmo botão está nos painéis
+de remapeamento em Início. Salvar perfis e instalar o RPM não ativam a captura.
+
+**Remover autorização** pausa a captura correspondente e remove apenas regras
+criadas pelo gerenciador, bloqueando novas ativações até uma nova concessão.
+Esse bloqueio vale mesmo com ACL residual ou permissão externa. Reconectar o
+dispositivo encerra acessos residuais do sistema; permissões externas podem permanecer. Sem série individual, a regra fica vinculada
+à porta/interface, conforme indicado na tela. Atualize o vínculo do cadastro se a
+interface mudar após reconexão. O fluxo exige o helper e a política incluídos no RPM.
+Veja [arquitetura, instalação e limites](docs/device-access.md).
+
+## Remapeamento experimental do teclado
+
+Depois de salvar o mapa no editor, abra **Início → Remapeamento do teclado**,
+selecione o teclado cadastrado, solte todas as teclas e clique em **Ativar
+remapeamento**. O mapa aplicado é o do perfil ativo no daemon, conforme o foco;
+o perfil em edição continua independente. **Pausar remapeamento** restaura a entrada
+original. A bandeja também oferece ativação e pausa de teclado.
+
+Esta etapa aceita uma interface alfanumérica física por vez. Mouse e teclado podem
+ficar ativos simultaneamente quando usam interfaces distintas. Se ambos os cadastros
+apontarem para a mesma interface composta, pause um antes de ativar o outro.
+São suportados tecla → tecla, atalho, botão do mouse e desativação. Teclas sem ação
+passam normalmente; o motor transforma a repetição física no destino do mapa.
+**Ctrl + Alt + Pause** no teclado físico pausa o teclado por emergência, mesmo que
+essas teclas tenham ações personalizadas. Bloqueio, suspensão, perda de foco,
+desconexão e encerramento liberam a captura; o retorno exige ativação explícita.
+
+Reinicie interface e daemon juntos para habilitar os novos comandos. Esta etapa
+passou nos testes automatizados do motor/IPC e na interface com API simulada.
+O teste virtual `--keyboard-self-test` parou por EACCES ao abrir a fixture, antes de
+emitir eventos. O remapeamento básico no Aula F99 foi confirmado manualmente;
+repetição no KDE, indicadores de lock e recuperação ainda precisam de validação física. Veja [escopo e validação](docs/native-input.md).
 
 ## Remapeamento experimental do mouse
 
@@ -227,7 +290,8 @@ virtuais são recusados. O perfil ativo vem do
 foco da janela; o dropdown Editar perfil continua independente dessa seleção.
 Teclas/atalhos, outros botões e desativação são suportados para os códigos de mouse
 implementados. Interfaces sem permissão ou já capturadas retornam um erro visível.
-Não há concessão automática de permissões ou alteração de grupos/udev.
+Permissões podem ser concedidas pelo fluxo administrativo explícito de Gerenciar acesso.
+Não há inclusão em grupos nem concessão automática ao ativar.
 
 **Validação física do Logitech G PRO Wireless:** atalhos laterais, pausa/reativação,
 troca de perfil com botão pressionado, desconexão e encerramento/reinício passaram
@@ -283,12 +347,12 @@ ou capturar outra janela. O prazo é de 30 segundos; requer daemon `--kde` com s
 temporária conectada ao KWin. Reinicie o daemon e a interface uma vez após atualizar para
 habilitar os novos comandos. A detecção preenche o formulário; só **Salvar alterações**
 grava a associação. A aba **Início** oferece o editor visual do mouse; ações existentes são preservadas
-ao editar os dados do perfil. O editor visual do teclado permanece pendente.
+ao editar os dados do perfil. O editor visual do teclado salva as ações; a execução física depende da ativação explícita do teclado no daemon.
 
 O daemon `--kde` carrega o mesmo arquivo e verifica alterações durante sua espera
 de foco (intervalo de 500 ms, além do tempo de consulta D-Bus). Uma gravação válida
 reavalia a última janela observada, mesmo sem uma nova troca de foco, e publica o
-resultado por evento. A aplicação física depende de o mouse estar explicitamente ativo. Se o arquivo ficar inválido durante
+resultado por evento. A aplicação física depende de o dispositivo estar explicitamente ativo. Se o arquivo ficar inválido durante
 a execução, o daemon mantém a última política válida e registra um erro; arquivo
 inválido no início impede a inicialização. Reinicie daemon e interface uma vez
 para usar esta versão; depois, editar perfis não exige reinício.
@@ -406,8 +470,9 @@ cargo run -p bindforge-daemon --features linux-devices -- --list-devices
 ```
 
 O adaptador usa libudev; no Fedora, a dependência de compilação é `systemd-devel`.
-O projeto não concede acesso a `/dev/input`, não instala regras udev e não altera grupos.
-A captura explícita usa apenas as permissões já existentes.
+O inventário não concede acesso a `/dev/input` nem altera grupos. A concessão de
+regras udev exige Gerenciar acesso e autenticação administrativa; a captura usa as
+permissões já disponíveis.
 Detalhes e limites de identidade estão em [docs/devices.md](docs/devices.md).
 
 ## Teste rápido na sua sessão KDE
@@ -467,7 +532,7 @@ e permissões de entrada. Nenhuma dessas opções foi implementada ou validada.
 
 Próximas etapas: validar instalação/login do pacote na sessão real, medir latência,
 ampliar a cobertura de hardware, adicionar controle de taxa do receptor de foco
-e desenvolver o editor/backend de teclado.
+e completar a validação física do backend de teclado.
 
 A marca, os executáveis e o pacote agora são **BindForge**. Perfis anteriores
 são migrados automaticamente para a pasta `bindforge`, preservando o original.

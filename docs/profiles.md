@@ -202,7 +202,30 @@ outro hardware por suposição.
 Renomear/copiar/excluir perfis segue na aba Perfis. Ambas as telas recebem a
 configuração após salvamentos, evitando revisões locais divergentes. A prévia
 por app ID fica em Perfis; atividade do daemon e histórico ficam em Início.
-A tela de dispositivos mantém sua atualização manual. O teclado tem ilustração e
-um modal informativo; a edição visual de teclas ainda não foi implementada.
+A tela de dispositivos mantém sua atualização manual.
+
+### Editor de teclado
+
+O cartão do teclado em Início abre um editor do perfil escolhido, com snapshot de
+revisão e as mesmas proteções de salvamento e descarte do mouse. O desenho segue
+o layout cadastrado: ANSI (104 teclas), ISO (105) ou ABNT2 (107), com Enter, Shift,
+Ç, tecla extra de barra e teclado numérico correspondentes. São modelos completos
+de referência, sem detecção de formato compacto ou mudança do layout do sistema.
+O desenho ajusta sua largura e mantém rolagem horizontal em telas estreitas.
+
+Clique em uma tecla, ou use as setas e Enter, para configurar a ação no painel.
+O destino pode ser outra tecla, um atalho com modificadores, botão do mouse ou
+Disabled. As mudanças entram diretamente no rascunho e só são persistidas em
+Salvar alterações. Voltar ao comportamento original remove a ação específica;
+uma ação geral existente continua aparecendo como herdada. A lista de mapeamentos
+permite acessar inclusive ações existentes para teclas ausentes no desenho.
+
+Novas entradas Key e destinos KeyChord usam nomes físicos KEY_* do Linux,
+independentes da legenda: no ABNT2, Ç corresponde a KEY_SEMICOLON. A prévia também
+reconhece nomes simbólicos anteriores, como CapsLock e A, preservando as demais
+ações de mouse, interfaces e perfis. O backend de teclado também normaliza
+as entradas antes de compilar os mapas; colisões entre aliases no mesmo escopo são
+recusadas. Salvar não ativa a captura física: use Remapeamento do teclado na Home.
+Com o teclado já ativo, mudanças no perfil ativo são aplicadas pelo daemon.
 
 A variável de ambiente anterior continua aceita como fallback de compatibilidade.
