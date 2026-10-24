@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { MouseArt, KeyboardArt } from "./device-art";
 import { DeviceBattery } from "./device-battery";
 import { MouseEditor } from "./mouse-editor";
-import { Modal } from "./modal";
+import { KeyboardEditor } from "./keyboard-editor";
 import { ProfileName } from "./profile-name";
 import { profileApi } from "./profile-api";
 import { configWithBindings } from "./mouse-bindings";
@@ -20,7 +20,7 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
   const [inventory, setInventory] = useState<InventoryState>({ phase: "idle" });
   const [refresh, setRefresh] = useState(0);
   const [editor, setEditor] = useState<{ profile: Profile; revision: number; device?: ConfiguredDevice } | null>(null);
-  const [keyboard, setKeyboard] = useState<ConfiguredDevice | null>(null);
+  const [keyboard, setKeyboard] = useState<{ profile: Profile; revision: number; device: ConfiguredDevice } | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const trigger = useRef<HTMLElement | null>(null);
@@ -33,10 +33,10 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
     if (!active) return;
     return watchInventory(read, setInventory);
   }, [native, connected, read, refresh, active]);
-  async function persist(next: Profile, revision: number) {
+  async function persist(next: Profile, revision: number, keyboard = false) {
     if (!config) throw new Error("Recarregue seus perfis antes de salvar.");
     const saved = await api.save(configWithBindings(config, next, revision), revision);
-    onConfigChange(saved); onSaved(); setMessage(`Mapeamentos de “${next.name}” salvos. ${simulation ? "Ative o remapeamento para aplicar ao mouse físico." : "O daemon aplica as ações conforme o perfil ativo."}`);
+    onConfigChange(saved); onSaved(); setMessage(`Mapeamentos de “${next.name}” salvos. ${keyboard ? "Ative este teclado no daemon para aplicar suas ações conforme o perfil em foco." : simulation ? "Ative o remapeamento para aplicar ao mouse físico." : "O daemon aplica as ações conforme o perfil ativo."}`);
     return saved;
   }
   return <section className="home-panel" aria-labelledby="home-heading">
@@ -54,13 +54,13 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
       {(config?.devices ?? []).map(device => <button key={device.id} type="button" className="device-card" disabled={!profile} onClick={() => {
         trigger.current = document.activeElement as HTMLElement;
         if (device.kind === "mouse" && profile && config) { setEditor({ profile: structuredClone(profile), revision: config.revision, device: structuredClone(device) }); setMessage(""); }
-        else setKeyboard(device);
+        else if (profile && config) { setKeyboard({ profile: structuredClone(profile), revision: config.revision, device: structuredClone(device) }); setMessage(""); }
       }}>
         <span className="device-card-art">{device.kind === "mouse" ? <MouseArt /> : <KeyboardArt />}</span><span className="device-card-name">{device.name}</span>
         <span className="device-card-caption">{device.kind === "mouse" ? `${device.button_count} botões` : layouts[device.layout!]}</span>
         <span className="device-card-caption">{inventory.phase !== "ready" ? "Conexão não verificada" : devices.some(d => d.id === device.interface_id) ? "Interface conectada" : "Interface indisponível"}</span>
         <DeviceBattery device={devices.find(d => d.id === device.interface_id)} />
-        <span className="device-card-link">{device.kind === "mouse" ? "Configurar botões ↗" : "Ver teclado ↗"}</span>
+        <span className="device-card-link">{device.kind === "mouse" ? "Configurar botões ↗" : "Configurar teclas ↗"}</span>
       </button>)}
     </div>
     {!config?.devices?.length && <p className="hint">Abra a aba Dispositivos e clique em + para cadastrar seu mouse ou teclado. Eles aparecerão aqui.</p>}
@@ -70,9 +70,6 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
     {inventory.phase === "error" && <p role="alert">{inventory.message}</p>}
     {message && <p role="status">{message}</p>}{error && <p role="alert">{error}</p>}
     {active && editor && <MouseEditor simulation={simulation} profile={editor.profile} revision={editor.revision} device={editor.device} save={persist} close={() => setEditor(null)} restoreFocus={trigger} />}
-    {active && keyboard && <Modal title={keyboard.name} compact restoreFocus={trigger} onDismiss={() => setKeyboard(null)}>
-      <KeyboardArt /><p>Layout: {layouts[keyboard.layout!]}.</p><p>O editor visual de teclas será a próxima etapa. Nesta versão, você já pode atribuir teclas e atalhos aos botões do mouse.</p>
-      <div className="button-row modal-actions"><button type="button" onClick={() => setKeyboard(null)}>Fechar</button></div>
-    </Modal>}
+    {active && keyboard && <KeyboardEditor profile={keyboard.profile} revision={keyboard.revision} device={keyboard.device} save={(next, revision) => persist(next, revision, true)} close={() => setKeyboard(null)} restoreFocus={trigger} />}
   </section>;
 }

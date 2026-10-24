@@ -7,8 +7,8 @@ let previousOverflow = "";
 /** Native dialogs handle focus trapping, inert background and focus restoration.
  * Each nested dialog has its own top-layer entry; Escape dismisses only the top one.
  */
-export function Modal({ title, children, onDismiss, busy = false, initialFocus, restoreFocus, compact = false }: {
-  title: string; children: ReactNode; onDismiss: () => void; busy?: boolean; initialFocus?: string; restoreFocus?: RefObject<HTMLElement | null>; compact?: boolean;
+export function Modal({ title, children, onDismiss, busy = false, initialFocus, restoreFocus, compact = false, wide = false }: {
+  title: string; children: ReactNode; onDismiss: () => void; busy?: boolean; initialFocus?: string; restoreFocus?: RefObject<HTMLElement | null>; compact?: boolean; wide?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -29,7 +29,7 @@ export function Modal({ title, children, onDismiss, busy = false, initialFocus, 
       if (--openModals === 0) document.body.style.overflow = previousOverflow;
     };
   }, [initialFocus, restoreFocus]);
-  return createPortal(<dialog ref={ref} className={`app-modal${compact ? " app-modal-compact" : ""}`}
+  return createPortal(<dialog ref={ref} className={`app-modal${compact ? " app-modal-compact" : ""}${wide ? " app-modal-wide" : ""}`}
     aria-labelledby={titleId} aria-modal="true" aria-busy={busy}
     onCancel={event => { event.preventDefault(); event.stopPropagation(); if (!busy) onDismiss(); }}>
     <div className="modal-header"><h2 id={titleId}>{title}</h2>
