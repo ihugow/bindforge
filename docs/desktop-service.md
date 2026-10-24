@@ -69,7 +69,7 @@ e `/dev/uinput` do backend existente.
 Instale o RPM pelo gerenciador gráfico ou, na raiz do repositório:
 
 ```bash
-sudo dnf install './target/release/bundle/rpm/BindForge-0.1.0-1.x86_64.rpm'
+sudo dnf install './target/release/bundle/rpm/BindForge-0.1.0-2.x86_64.rpm'
 ```
 
 Abra **BindForge** no menu, inicie o serviço e ative o mouse desejado.

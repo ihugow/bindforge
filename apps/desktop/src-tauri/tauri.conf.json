@@ -35,6 +35,7 @@
     "shortDescription": "Perfis de mouse para aplicativos no KDE Wayland",
     "linux": {
       "rpm": {
+        "release": "2",
         "depends": [
           "webkit2gtk4.1",
           "gtk3",
