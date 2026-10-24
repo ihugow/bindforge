@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>BindForge</vendor>
+  <action id="org.bindforge.device-access.grant">
+    <description>Authorize a selected input interface for BindForge</description>
+    <description xml:lang="pt_BR">Autorizar uma interface de entrada selecionada no BindForge</description>
+    <message>Authentication is required to authorize the selected input interface and virtual output for the active local session.</message>
+    <message xml:lang="pt_BR">Autentique-se para autorizar a interface de entrada selecionada e a saída virtual na sessão local ativa.</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/bindforge/bindforge-device-access</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">grant</annotate>
+  </action>
+  <action id="org.bindforge.device-access.revoke">
+    <description>Remove a BindForge input authorization</description>
+    <description xml:lang="pt_BR">Remover uma autorização de entrada do BindForge</description>
+    <message>Authentication is required to remove the selected BindForge input authorization.</message>
+    <message xml:lang="pt_BR">Autentique-se para remover a autorização de entrada selecionada do BindForge.</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/bindforge/bindforge-device-access</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">revoke</annotate>
+  </action>
+</policyconfig>

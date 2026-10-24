@@ -1,0 +1,23 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Device access fixture</title><body><main><h1>BindForge</h1><div id="root"></div></main>
+<script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { DeviceAccessButton } from '../src/device-access-panel.tsx';
+import '../src/style.css';
+const scenario = new URLSearchParams(location.search).get('scenario');
+const device = {id:'keyboard-a',name:'Aula F99 de exemplo',kind:'keyboard',interface_id:'fixture',button_count:null,layout:'ansi'};
+const initial = {fingerprint:'a'.repeat(64),device_name:'Receptor de exemplo', model:'3554:fa09', readable:false,output_writable:false,managed:false,revoked:false,helper_available:scenario!=='missing-helper',scope:'Porta e interface atuais; sem número de série individual',message:scenario==='missing-helper'?'O componente administrativo precisa ser instalado.':'Autorização necessária.'};
+let status={...initial}; window.accessCalls=[];
+const api={
+ status: async()=>{if(scenario==='disconnected') throw new Error('Interface desconectada.'); return {...status};},
+ control: async(id,action,fingerprint)=>{
+   window.accessCalls.push([id,action,fingerprint]);
+   if(scenario==='slow') await new Promise(resolve=>setTimeout(resolve,600));
+   if(scenario==='cancel') throw new Error('Autenticação cancelada.');
+   if(scenario==='failure') throw new Error('Falha ao aplicar as permissões.');
+   status={...status,managed:action==='grant',revoked:action==='revoke',readable:true,output_writable:action==='grant',message:action==='grant'?'Autorização instalada.':'Sem autorização gerenciada.'};
+   return {status:{...status},reconnect_required:action==='revoke',message:action==='revoke'?'Autorização removida. Ativação bloqueada até nova concessão.':'Autorização instalada; ative o remapeamento explicitamente.'};
+ }
+};
+createRoot(document.getElementById('root')).render(React.createElement(DeviceAccessButton,{device,api}));
+</script></body></html>

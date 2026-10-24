@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DeviceAccessButton } from "./device-access-panel";
 import { Modal } from "./modal";
 import { compatible, layouts, type ConfiguredDevice } from "./configured-devices";
 import type { DetectedDevice } from "./devices";
@@ -32,5 +33,6 @@ export function DeviceForm({ device, inventory, save, close }: {
       {error && <p role="alert">{error}</p>}
       <div className="button-row modal-actions"><button type="button" disabled={busy} onClick={close}>Cancelar</button><button type="submit" disabled={busy}>{busy ? "Salvando…" : "Salvar dispositivo"}</button></div>
     </form>
+    {device && <div className="device-access-entry"><h3>Acesso para remapeamento</h3><DeviceAccessButton device={device} disabled={busy || interfaceId !== device.interface_id} /><p className="hint">{interfaceId !== device.interface_id ? "Salve o novo vínculo antes de gerenciar o acesso." : "Consulte, conceda ou remova a autorização deste dispositivo pela autenticação do sistema."}</p></div>}
   </Modal>;
 }

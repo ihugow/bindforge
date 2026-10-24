@@ -5,6 +5,38 @@ mod kwin_integration;
 #[cfg(target_os = "linux")]
 mod daemon_service;
 
+#[cfg(target_os = "linux")]
+mod device_access;
+
+#[tauri::command]
+async fn get_device_access(device_id: String, window: tauri::WebviewWindow) -> Result<access_types::Status, String> {
+    if window.label() != "main" { return Err("Unsupported window".into()); }
+    #[cfg(target_os = "linux")]
+    { tauri::async_runtime::spawn_blocking(move || device_access::status(&device_id)).await.map_err(|e| e.to_string())? }
+    #[cfg(not(target_os = "linux"))]
+    { let _ = device_id; Err("Gerenciamento de acesso disponível apenas no Linux.".into()) }
+}
+#[tauri::command]
+async fn configure_device_access(device_id: String, action: access_types::Action, fingerprint: String, window: tauri::WebviewWindow) -> Result<access_types::Result, String> {
+    if window.label() != "main" { return Err("Unsupported window".into()); }
+    #[cfg(target_os = "linux")]
+    { tauri::async_runtime::spawn_blocking(move || device_access::control(&device_id, action, &fingerprint)).await.map_err(|e| e.to_string())? }
+    #[cfg(not(target_os = "linux"))]
+    { let _ = (device_id, action, fingerprint); Err("Gerenciamento de acesso disponível apenas no Linux.".into()) }
+}
+mod access_types {
+    #[cfg(target_os = "linux")]
+    pub use bindforge_access::{AccessStatus as Status, Action};
+    #[cfg(target_os = "linux")]
+    pub use super::device_access::AccessResult as Result;
+    #[cfg(not(target_os = "linux"))]
+    #[derive(serde::Serialize)] pub struct Status {}
+    #[cfg(not(target_os = "linux"))]
+    #[derive(serde::Serialize)] pub struct Result {}
+    #[cfg(not(target_os = "linux"))]
+    #[derive(serde::Deserialize)] #[serde(rename_all = "snake_case")] pub enum Action { Grant, Revoke }
+}
+
 #[tauri::command]
 async fn get_daemon_service() -> Result<daemon_service_status::Status, String> {
     #[cfg(target_os = "linux")]
@@ -81,6 +113,30 @@ async fn pause_mouse(window: tauri::WebviewWindow) -> Result<InputStatus, String
     if window.label() != "main" { return Err("Unsupported window".into()); }
     #[cfg(target_os = "linux")]
     { tauri::async_runtime::spawn_blocking(|| input_result(remap_ipc::dbus::InputCommand::Pause)).await.map_err(|e| e.to_string())? }
+    #[cfg(not(target_os = "linux"))]
+    { Err("Backend de entrada disponível apenas no Linux.".into()) }
+}
+
+#[tauri::command]
+async fn get_keyboard_status() -> Result<InputStatus, String> {
+    #[cfg(target_os = "linux")]
+    { tauri::async_runtime::spawn_blocking(|| input_result(remap_ipc::dbus::InputCommand::KeyboardStatus)).await.map_err(|e| e.to_string())? }
+    #[cfg(not(target_os = "linux"))]
+    { Err("Backend de entrada disponível apenas no Linux.".into()) }
+}
+#[tauri::command]
+async fn start_keyboard(device_id: String, window: tauri::WebviewWindow) -> Result<InputStatus, String> {
+    if window.label() != "main" { return Err("Unsupported window".into()); }
+    #[cfg(target_os = "linux")]
+    { tauri::async_runtime::spawn_blocking(move || input_result(remap_ipc::dbus::InputCommand::StartKeyboard(&device_id))).await.map_err(|e| e.to_string())? }
+    #[cfg(not(target_os = "linux"))]
+    { Err("Backend de entrada disponível apenas no Linux.".into()) }
+}
+#[tauri::command]
+async fn pause_keyboard(window: tauri::WebviewWindow) -> Result<InputStatus, String> {
+    if window.label() != "main" { return Err("Unsupported window".into()); }
+    #[cfg(target_os = "linux")]
+    { tauri::async_runtime::spawn_blocking(|| input_result(remap_ipc::dbus::InputCommand::PauseKeyboard)).await.map_err(|e| e.to_string())? }
     #[cfg(not(target_os = "linux"))]
     { Err("Backend de entrada disponível apenas no Linux.".into()) }
 }
@@ -363,6 +419,6 @@ fn main() {
             }
         }
     });
-    builder.invoke_handler(tauri::generate_handler![get_daemon_service, control_daemon_service, get_input_status, start_mouse, pause_mouse, get_kwin_integration, configure_kwin_integration, start_window_capture, stop_window_capture, load_profiles, save_profiles, preview_profile, get_daemon_status, list_devices, start_daemon_status, stop_daemon_status])
+    builder.invoke_handler(tauri::generate_handler![get_daemon_service, control_daemon_service, get_device_access, configure_device_access, get_input_status, start_mouse, pause_mouse, get_keyboard_status, start_keyboard, pause_keyboard, get_kwin_integration, configure_kwin_integration, start_window_capture, stop_window_capture, load_profiles, save_profiles, preview_profile, get_daemon_status, list_devices, start_daemon_status, stop_daemon_status])
         .run(tauri::generate_context!()).expect("failed to start desktop shell");
 }

@@ -41,11 +41,15 @@
           "libappindicator-gtk3",
           "systemd",
           "systemd-libs",
-          "kwin"
+          "kwin",
+          "polkit",
+          "kmod"
         ],
         "files": {
           "/usr/libexec/bindforge/bindforge-daemon": "../../../target/release/bindforge-daemon",
-          "/usr/lib/systemd/user/bindforge-daemon.service": "../../../integrations/systemd/bindforge-daemon.service"
+          "/usr/lib/systemd/user/bindforge-daemon.service": "../../../integrations/systemd/bindforge-daemon.service",
+          "/usr/libexec/bindforge/bindforge-device-access": "../../../target/release/bindforge-device-access",
+          "/usr/share/polkit-1/actions/org.bindforge.device-access.policy": "../../../integrations/polkit/org.bindforge.device-access.policy"
         },
         "obsoletes": [
           "app-buttons-remap <= 0.1.0"

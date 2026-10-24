@@ -55,11 +55,12 @@ function App() {
   return <main>
     <header><span className="eyebrow">FEDORA KDE · EM DESENVOLVIMENTO</span>
       <h1>BindForge</h1><p>Seus dispositivos. Um perfil para cada aplicativo.</p></header>
-    <aside><strong>{simulation ? "Remapeamento pausado" : "Remapeamento físico ativo"}</strong><p>{simulation ? "A seleção de perfis continua sendo acompanhada. Ative um mouse cadastrado para executar suas ações." : "O daemon está remapeando o mouse selecionado conforme a janela em foco. Use Pausar remapeamento para restaurar o funcionamento original."}</p></aside>
+    <aside><strong>{simulation ? "Remapeamento pausado" : "Remapeamento físico ativo"}</strong><p>{simulation ? "A seleção de perfis continua sendo acompanhada. Ative um mouse ou teclado cadastrado para executar suas ações." : "O daemon está remapeando os dispositivos ativados conforme a janela em foco. Use Pausar remapeamento para restaurar o funcionamento original."}</p></aside>
     <WorkspaceTabs home={visible => <>
       <HomePanel config={config} native={native} daemon={daemon} active={visible} onConfigChange={setConfig} onSaved={() => setSelection(null)} read={readDevices} />
     <DaemonServicePanel native={native} active={visible} connected={daemon.phase === "connected"} />
     <NativeInputPanel focused={daemon.phase === "connected" && daemon.status.focus_state === "focused"} version={daemon.phase === "connected" ? daemon.status.revision : ""} native={native} connected={daemon.phase === "connected"} simulation={simulation} config={config} />
+    <NativeInputPanel kind="keyboard" focused={daemon.phase === "connected" && daemon.status.focus_state === "focused"} version={daemon.phase === "connected" ? daemon.status.revision : ""} native={native} connected={daemon.phase === "connected"} simulation={simulation} config={config} />
     <KwinIntegrationPanel native={native} active={visible} daemonState={daemon.phase === "connected" ? daemon.status.focus_state : daemon.phase} />
     <section aria-labelledby="daemon-heading">
       <h2 id="daemon-heading">Perfil no daemon</h2>
@@ -101,7 +102,7 @@ function App() {
       <li>Core Rust: regras, prioridades e troca de perfil.</li>
       <li>Daemon: processo separado, com consulta de estado pela interface nativa.</li>
       <li>KDE Wayland: ponte D-Bus de foco opcional no daemon.</li>
-      <li>Dispositivos: identificação disponível no Linux. Remapeamento de um mouse físico disponível por ativação explícita.</li>
+      <li>Dispositivos: identificação disponível no Linux. Remapeamento de mouse e teclado físicos disponível por ativação explícita.</li>
     </ul></section></details>
   </main>;
 }

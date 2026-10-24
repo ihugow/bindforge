@@ -19,3 +19,6 @@ unsafe_code = "forbid"
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = "5.19"
 remap-ipc = { path = "../../../crates/remap-ipc", features = ["dbus"] }
+bindforge-access = { path = "../../../crates/bindforge-access" }
+rustix = { version = "1.1", features = ["fs"] }
+serde_json = "1"

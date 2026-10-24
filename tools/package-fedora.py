@@ -12,7 +12,7 @@ def main():
     # a developer's global Cargo target directory.
     environment = dict(os.environ, CARGO_TARGET_DIR=str(ROOT / "target"))
     subprocess.run(
-        ["cargo", "build", "--release", "--locked", "-p", "bindforge-daemon", "--features", "kde-dbus"],
+        ["cargo", "build", "--release", "--locked", "-p", "bindforge-daemon", "-p", "bindforge-access", "--features", "kde-dbus"],
         cwd=ROOT, env=environment, check=True,
     )
     subprocess.run(

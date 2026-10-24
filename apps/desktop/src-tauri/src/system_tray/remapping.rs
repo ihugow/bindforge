@@ -2,111 +2,101 @@ use std::{sync::mpsc, time::Duration};
 use tauri::{menu::{Menu, MenuItem, Submenu}, AppHandle, Emitter};
 use remap_ipc::dbus::{session_input, InputCommand, InputStatus};
 
-const START_PREFIX: &str = "tray-start:";
-
 enum Command { Start(String), Pause }
-
-pub(super) struct Controls(mpsc::SyncSender<Command>);
-
+struct Group { keyboard: bool, devices: Vec<(String, String)>, previous: Option<InputStatus>, action_error: Option<String> }
+impl Group {
+    fn title(&self) -> &'static str { if self.keyboard { "Teclado" } else { "Mouse" } }
+    fn prefix(&self) -> &'static str { if self.keyboard { "tray-start-keyboard:" } else { "tray-start:" } }
+    fn pause_id(&self) -> &'static str { if self.keyboard { "tray-pause-keyboard" } else { "tray-pause" } }
+}
+pub(super) struct Controls([GroupControls; 2]);
+struct GroupControls { sender: mpsc::SyncSender<Command>, prefix: &'static str, pause_id: &'static str }
 impl Controls {
     pub(super) fn new(app: &AppHandle, menu: &Menu<tauri::Wry>) -> tauri::Result<Self> {
-        let status = MenuItem::new(app, "Consultando remapeamento…", false, None::<&str>)?;
-        let start = Submenu::new(app, "Iniciar remapeamento", false)?;
-        let pause = MenuItem::with_id(app, "tray-pause", "Pausar remapeamento", false, None::<&str>)?;
+        Ok(Self([GroupControls::new(app, menu, false)?, GroupControls::new(app, menu, true)?]))
+    }
+    pub(super) fn dispatch(&self, id: &str) { for group in &self.0 { group.dispatch(id); } }
+}
+impl GroupControls {
+    fn new(app: &AppHandle, menu: &Menu<tauri::Wry>, keyboard: bool) -> tauri::Result<Self> {
+        let mut group = Group { keyboard, devices: Vec::new(), previous: None, action_error: None };
+        let title = group.title();
+        let status = MenuItem::new(app, format!("{title}: consultando…"), false, None::<&str>)?;
+        let start = Submenu::new(app, format!("Iniciar remapeamento do {}", title.to_lowercase()), false)?;
+        let pause = MenuItem::with_id(app, group.pause_id(), format!("Pausar remapeamento do {}", title.to_lowercase()), false, None::<&str>)?;
         menu.append_items(&[&status, &start, &pause])?;
         let (sender, receiver) = mpsc::sync_channel(1);
-        let app = app.clone();
-        // Input1 has no change signal. Refresh independently of window visibility,
-        // serializing tray commands off the UI thread with bounded D-Bus timeouts.
+        let app = app.clone(); let prefix = group.prefix(); let pause_id = group.pause_id();
+        // Input1 has no change signal. Keep controls available with the window hidden.
         std::thread::spawn(move || {
-            let mut mice = Vec::new();
-            let mut previous = None;
-            let mut action_error = None;
             loop {
-                if let Err(error) = refresh(&app, &status, &start, &pause, &mut mice, &mut previous, action_error.as_deref()) {
+                if let Err(error) = refresh(&app, &status, &start, &pause, &mut group) {
                     eprintln!("Não foi possível atualizar o menu de remapeamento: {error}");
                 }
                 match receiver.recv_timeout(Duration::from_secs(2)) {
                     Ok(command) => {
-                        let _ = start.set_enabled(false);
-                        let _ = pause.set_enabled(false);
-                        let result = execute(command);
-                        action_error = result.err();
+                        let _ = start.set_enabled(false); let _ = pause.set_enabled(false);
+                        group.action_error = execute(command, keyboard).err();
                     }
                     Err(mpsc::RecvTimeoutError::Timeout) => {}
                     Err(mpsc::RecvTimeoutError::Disconnected) => break,
                 }
             }
         });
-        Ok(Self(sender))
+        Ok(Self { sender, prefix, pause_id })
     }
-
-    pub(super) fn dispatch(&self, id: &str) {
-        let command = if id == "tray-pause" { Command::Pause }
-            else if let Some(id) = id.strip_prefix(START_PREFIX) { Command::Start(id.into()) }
+    fn dispatch(&self, id: &str) {
+        let command = if id == self.pause_id { Command::Pause }
+            else if let Some(id) = id.strip_prefix(self.prefix) { Command::Start(id.into()) }
             else { return };
-        // A full queue already contains an explicit user action; never block GTK.
-        let _ = self.0.try_send(command);
+        let _ = self.sender.try_send(command);
     }
 }
-
-fn saved_mice() -> Result<Vec<(String, String)>, String> {
+fn saved_devices(keyboard: bool) -> Result<Vec<(String, String)>, String> {
     let config = remap_config::load(&remap_config::config_path()?)?;
     config.validate()?;
-    Ok(config.devices.into_iter().filter(|d| d.kind == "mouse").map(|d| (d.id, d.name)).collect())
+    Ok(config.devices.into_iter().filter(|d| d.kind == if keyboard { "keyboard" } else { "mouse" }).map(|d| (d.id, d.name)).collect())
 }
-
-fn execute(command: Command) -> Result<InputStatus, String> {
+fn execute(command: Command, keyboard: bool) -> Result<InputStatus, String> {
     match command {
-        Command::Pause => session_input(InputCommand::Pause),
+        Command::Pause => session_input(if keyboard { InputCommand::PauseKeyboard } else { InputCommand::Pause }),
         Command::Start(id) => {
-            if !saved_mice()?.iter().any(|(saved, _)| saved == &id) {
-                return Err("Mouse removido do cadastro. Abra a interface para selecionar outro.".into());
+            if !saved_devices(keyboard)?.iter().any(|(saved, _)| saved == &id) {
+                return Err("Dispositivo removido do cadastro. Abra a interface para selecionar outro.".into());
             }
-            session_input(InputCommand::Start(&id))
+            session_input(if keyboard { InputCommand::StartKeyboard(&id) } else { InputCommand::Start(&id) })
         }
     }
 }
-
-fn refresh(
-    app: &AppHandle,
-    status_item: &MenuItem<tauri::Wry>,
-    start: &Submenu<tauri::Wry>,
-    pause: &MenuItem<tauri::Wry>,
-    mice: &mut Vec<(String, String)>,
-    previous: &mut Option<InputStatus>,
-    action_error: Option<&str>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let saved = saved_mice();
+fn refresh(app: &AppHandle, status_item: &MenuItem<tauri::Wry>, start: &Submenu<tauri::Wry>, pause: &MenuItem<tauri::Wry>, group: &mut Group) -> Result<(), Box<dyn std::error::Error>> {
+    let saved = saved_devices(group.keyboard);
     let current = saved.as_ref().cloned().unwrap_or_default();
-    if current != *mice {
+    if current != group.devices {
         while start.remove_at(0)?.is_some() {}
         for (id, name) in &current {
-            start.append(&MenuItem::with_id(app, format!("{START_PREFIX}{id}"), name.replace('&', "&&"), true, None::<&str>)?)?;
+            start.append(&MenuItem::with_id(app, format!("{}{id}", group.prefix()), name.replace('&', "&&"), true, None::<&str>)?)?;
         }
-        *mice = current;
+        group.devices = current;
     }
-    let input = session_input(InputCommand::Status);
+    let input = session_input(if group.keyboard { InputCommand::KeyboardStatus } else { InputCommand::Status });
     let active = input.as_ref().is_ok_and(|s| s.active);
-    start.set_enabled(input.is_ok() && !active && !mice.is_empty() && saved.is_ok())?;
+    start.set_enabled(input.is_ok() && !active && !group.devices.is_empty() && saved.is_ok())?;
     pause.set_enabled(active)?;
-    let label = if let Some(error) = action_error { format!("Falha: {error}") }
+    let label = if let Some(error) = &group.action_error { format!("Falha: {error}") }
         else if let Err(error) = &input { format!("Daemon indisponível: {error}") }
         else if active {
             let id = &input.as_ref().unwrap().device_id;
-            let name = mice.iter().find(|(saved, _)| saved == id).map(|(_, name)| name.as_str()).unwrap_or("Mouse");
-            format!("Remapeamento ativo: {name}")
+            group.devices.iter().find(|(saved, _)| saved == id).map(|(_, name)| format!("Ativo · {name}")).unwrap_or_else(|| "Ativo".into())
         } else if let Err(error) = saved { format!("Cadastro indisponível: {error}") }
-        else if mice.is_empty() { "Cadastre um mouse na interface".into() }
-        else { "Remapeamento pausado".into() };
-    status_item.set_text(label.chars().take(200).collect::<String>().replace('&', "&&"))?;
+        else { "Pausado".into() };
+    status_item.set_text(format!("{}: {}", group.title(), label.chars().take(180).collect::<String>()).replace('&', "&&"))?;
     if let Ok(input) = input {
-        if previous.as_ref() != Some(&input) {
-            app.emit("bindforge-input-status", crate::InputStatus {
+        if group.previous.as_ref() != Some(&input) {
+            app.emit(if group.keyboard { "bindforge-keyboard-status" } else { "bindforge-input-status" }, crate::InputStatus {
                 active: input.active, device_id: input.device_id.clone(), message: input.message.clone(),
             })?;
         }
-        *previous = Some(input);
-    } else { *previous = None; }
+        group.previous = Some(input);
+    } else { group.previous = None; }
     Ok(())
 }
