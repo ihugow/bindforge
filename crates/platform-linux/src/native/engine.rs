@@ -104,13 +104,19 @@ impl Engine {
         }
     }
     pub fn event(&mut self, event: InputEvent) -> Vec<InputEvent> {
-        if event.event_type() != EventType::KEY { return vec![event]; }
-        let code = event.code(); let mut out = vec![];
+        let mut out = vec![];
+        self.event_into(event, &mut out);
+        out
+    }
+    /// Append one event to a reusable frame buffer, preserving event order.
+    pub fn event_into(&mut self, event: InputEvent, out: &mut Vec<InputEvent>) {
+        if event.event_type() != EventType::KEY { out.push(event); return; }
+        let code = event.code();
         match event.value() {
             1 if !self.blocked.contains(&code) && !self.held.contains_key(&code) => {
-                let output = self.plan.output(code); self.press(&output, &mut out); self.held.insert(code, output);
+                let output = self.plan.output(code); self.press(&output, out); self.held.insert(code, output);
             }
-            0 => { self.blocked.remove(&code); if let Some(output) = self.held.remove(&code) { self.release(&output, &mut out); } }
+            0 => { self.blocked.remove(&code); if let Some(output) = self.held.remove(&code) { self.release(&output, out); } }
             2 if self.held.contains_key(&code) => {
                 if !self.plan.0.contains_key(&code) { out.push(event); }
                 else if code < KeyCode::BTN_0.0 {
@@ -121,7 +127,6 @@ impl Engine {
             },
             _ => {}
         }
-        out
     }
     pub fn replace(&mut self, plan: Plan) -> Vec<InputEvent> {
         let changed: Vec<_> = self.held.iter().filter(|(code, output)| plan.output(**code) != **output).map(|(code, _)| *code).collect();

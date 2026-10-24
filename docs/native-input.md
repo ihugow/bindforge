@@ -50,10 +50,30 @@ feita depois de validar a interface, compilar o plano e criar a saída virtual.
 Exige todos os botões soltos ao ativar. Se outro remapeador já possui o dispositivo,
 a captura é recusada; pause o Keymasq nesse mouse antes de ativar nosso backend.
 
-A tarefa de entrada usa espera de 2ms quando não há eventos, independente da espera
-KWin de 500ms. Quadros são emitidos ao SYN_REPORT. SYN_DROPPED, erro de leitura,
-quadro acima de 4096 eventos ou falha de saída encerram o remapeamento e liberam
-entrada/saída. Não há medição de latência de ponta a ponta nesta etapa.
+A tarefa de entrada aguarda disponibilidade do evdev com `poll`, sem espera fixa
+entre leituras. Um `eventfd` acorda a mesma espera para troca de perfil, pausa e
+encerramento, mesmo com mouse/teclado parado. A espera tem como prazo a próxima
+verificação de autorização (100ms); esse prazo não atrasa a entrada, pois eventos e
+comandos acordam a tarefa antes dele. O fluxo independe da espera KWin de 500ms.
+Quadros são emitidos ao SYN_REPORT, preservando a ordem e os limites dos relatórios.
+Os buffers de quadro e saída são reutilizados; movimentos e rolagem são adicionados
+diretamente à saída, sem criar um vetor para cada evento. A leitura percorre o
+iterador evdev sem copiá-lo para um vetor intermediário.
+SYN_DROPPED, erro de leitura, quadro acima de 4096 eventos ou falha de saída encerram
+o remapeamento e liberam entrada/saída. Não há medição de latência de ponta a ponta;
+a remoção da espera fixa não representa uma garantia de latência zero.
+
+Validação da espera orientada a eventos (24 de outubro de 2026):
+
+- `cargo test --workspace --all-features --locked --offline`: 90 testes passaram.
+  Os novos testes usam sockets locais e eventfd para verificar entrada disponível,
+  desconexão, notificações de controle acumuladas/concorrentes e o prazo de
+  autorização sem depender de hardware ou permissões uinput.
+- `cargo check --workspace --all-targets --all-features --locked --offline` e
+  build release do daemon com `kde-dbus` passaram.
+- Os testes isolados `--native-self-test` e `--keyboard-self-test`, executados no
+  build release, pararam por EACCES ao abrir os nós virtuais antes de emitir
+  eventos. Não houve captura física nem medição de latência ou CPU nesta rodada.
 
 O motor calcula a ação no pressionamento e mantém referências por tecla de saída:
 dois botões compartilhando Ctrl não o liberam enquanto o outro ainda precisa dele.

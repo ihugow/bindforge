@@ -14,7 +14,7 @@ futures-lite = { version = "2", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 udev = "0.9"
-rustix = { version = "1.1", features = ["fs"], optional = true }
+rustix = { version = "1.1", features = ["fs", "event"], optional = true }
 evdev = { version = "0.13.2", optional = true }
 
 [features]

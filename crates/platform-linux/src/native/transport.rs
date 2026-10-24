@@ -1,4 +1,4 @@
-use std::{fs, io, os::fd::AsFd, os::unix::fs::MetadataExt, path::{Path, PathBuf}, sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}, mpsc}, thread, time::{Duration, Instant}};
+use std::{fs, io, os::fd::{AsFd, OwnedFd}, os::unix::fs::MetadataExt, path::{Path, PathBuf}, sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}, mpsc}, thread, time::{Duration, Instant}};
 use evdev::{raw_stream::RawDevice, uinput::VirtualDevice, AbsoluteAxisCode, AttributeSet, EventType, InputEvent, KeyCode, RelativeAxisCode, UinputAbsSetup};
 use remap_core::{DeviceConnection, DeviceEnumerator, DeviceKind};
 use super::{Engine, Plan, DeviceRegistration, NativeStatus, InputKind, CaptureGuard};
@@ -105,10 +105,51 @@ fn virtual_output(source: &RawDevice, name: &str) -> Result<VirtualDevice, Strin
 fn emit(output: &mut VirtualDevice, events: &[InputEvent]) -> Result<(), String> {
     if !events.is_empty() { output.emit(events).map_err(|e| error("Falha na saída virtual; remapeamento interrompido", e))?; } Ok(())
 }
+// A shared eventfd wakes poll for control changes, even when the input is idle.
+struct Wake(OwnedFd);
+impl Wake {
+    fn new() -> Result<Self, String> {
+        rustix::event::eventfd(0, rustix::event::EventfdFlags::CLOEXEC | rustix::event::EventfdFlags::NONBLOCK)
+            .map(Self).map_err(|e| e.to_string())
+    }
+    fn notify(&self) -> Result<(), String> {
+        loop {
+            match rustix::io::write(&self.0, &1u64.to_ne_bytes()) {
+                Ok(_) | Err(rustix::io::Errno::AGAIN) => return Ok(()),
+                Err(rustix::io::Errno::INTR) => continue,
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+    }
+    fn wait(&self, source: &impl AsFd, timeout: Duration) -> Result<(), String> {
+        use rustix::event::{poll, PollFd, PollFlags, Timespec};
+        let mut fds = [PollFd::new(source, PollFlags::IN), PollFd::new(&self.0, PollFlags::IN)];
+        let timeout = Timespec::try_from(timeout).map_err(|e| e.to_string())?;
+        match poll(&mut fds, Some(&timeout)) {
+            Ok(_) => {},
+            Err(rustix::io::Errno::INTR) => return Ok(()),
+            Err(e) => return Err(error("Falha aguardando entrada", e)),
+        }
+        if fds.iter().any(|fd| fd.revents().intersects(PollFlags::NVAL)) {
+            return Err("Descritor de entrada inválido.".into());
+        }
+        if fds[1].revents().contains(PollFlags::IN) {
+            let mut bytes = [0u8; 8];
+            loop {
+                match rustix::io::read(&self.0, &mut bytes) {
+                    Ok(_) | Err(rustix::io::Errno::AGAIN) => break,
+                    Err(rustix::io::Errno::INTR) => continue,
+                    Err(e) => return Err(e.to_string()),
+                }
+            }
+        }
+        Ok(())
+    }
+}
 enum Control { Apply(Plan, mpsc::SyncSender<Result<(),String>>) }
 pub(super) struct Worker {
     device: DeviceRegistration, control: mpsc::SyncSender<Control>, stopping: Arc<AtomicBool>,
-    health: Arc<Mutex<NativeStatus>>, thread: Option<thread::JoinHandle<()>>,
+    wake: Arc<Wake>, health: Arc<Mutex<NativeStatus>>, thread: Option<thread::JoinHandle<()>>,
 }
 impl Worker {
     pub fn start(device: DeviceRegistration, plan: Plan, guard: CaptureGuard) -> Result<Self,String> {
@@ -126,15 +167,16 @@ impl Worker {
         let health = Arc::new(Mutex::new(NativeStatus { active: true, device_id: device.id.clone(), message: String::new() }));
         let stop = stopping.clone(); let state = health.clone();
         let kind = device.kind;
+        let wake = Arc::new(Wake::new()?); let worker_wake = wake.clone();
         let thread = thread::Builder::new().name(format!("{}-remapper", kind.name())).spawn(move || {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| pump(&mut source, output, plan, &commands, &stop, kind, guard.as_ref())))
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| pump(&mut source, output, plan, &commands, &stop, kind, guard.as_ref(), &worker_wake)))
                 .unwrap_or_else(|_| Err("A tarefa de entrada falhou e foi encerrada.".into()));
             // Closing RawDevice releases EVIOCGRAB even on errors/panic.
             drop(source);
             let mut state = state.lock().unwrap_or_else(|e| e.into_inner()); state.active = false;
             state.message = result.err().unwrap_or_default();
         }).map_err(|e| e.to_string())?;
-        Ok(Self { device, control, stopping, health, thread: Some(thread) })
+        Ok(Self { device, control, stopping, wake, health, thread: Some(thread) })
     }
     #[cfg(test)]
     pub(super) fn fixture(device: DeviceRegistration, applied: Arc<Mutex<Vec<Plan>>>, fail: bool) -> Self {
@@ -142,6 +184,7 @@ impl Worker {
         let stopping = Arc::new(AtomicBool::new(false)); let stop = stopping.clone();
         let health = Arc::new(Mutex::new(NativeStatus { active: true, device_id: device.id.clone(), message: String::new() }));
         let state = health.clone();
+        let wake = Arc::new(Wake::new().unwrap());
         let thread = thread::spawn(move || {
             while !stop.load(Ordering::Relaxed) {
                 if let Ok(Control::Apply(plan, ack)) = commands.recv_timeout(Duration::from_millis(2)) {
@@ -151,18 +194,20 @@ impl Worker {
             }
             state.lock().unwrap().active = false;
         });
-        Self { device, control, stopping, health, thread: Some(thread) }
+        Self { device, control, stopping, wake, health, thread: Some(thread) }
     }
     pub fn interface_id(&self) -> &str { &self.device.interface_id }
     pub fn status(&self) -> NativeStatus { self.health.lock().unwrap_or_else(|e| e.into_inner()).clone() }
     pub fn apply(&self, plan: Plan) -> Result<(),String> {
         let (send, recv) = mpsc::sync_channel(1);
         self.control.send(Control::Apply(plan, send)).map_err(|_| "O leitor do dispositivo encerrou. Ative novamente.".to_string())?;
+        self.wake.notify()?;
         recv.recv().map_err(|_| "O leitor do dispositivo encerrou durante a troca de perfil.".to_string())?
     }
     pub fn stop(mut self) { self.stop_inner(); }
     fn stop_inner(&mut self) {
         self.stopping.store(true, Ordering::Relaxed);
+        let _ = self.wake.notify();
         if let Some(handle) = self.thread.take() { let _ = handle.join(); }
     }
 }
@@ -172,6 +217,9 @@ struct CaptureAuthorization<'a> {
     last_check: Option<Instant>,
 }
 impl CaptureAuthorization<'_> {
+    fn remaining(&self) -> Duration {
+        self.last_check.map_or(Duration::ZERO, |at| Duration::from_millis(100).saturating_sub(at.elapsed()))
+    }
     fn check(&mut self) -> Result<(), String> {
         if self.last_check.is_none_or(|at| at.elapsed() >= Duration::from_millis(100)) {
             (self.guard)()?; self.last_check = Some(Instant::now());
@@ -179,9 +227,10 @@ impl CaptureAuthorization<'_> {
         Ok(())
     }
 }
-fn pump(source: &mut RawDevice, mut output: VirtualDevice, plan: Plan, commands: &mpsc::Receiver<Control>, stop: &AtomicBool, kind: InputKind, guard: &(dyn Fn() -> Result<(), String> + Send + Sync)) -> Result<(),String> {
-    let mut engine = Engine::new(plan); let mut frame = vec![]; let mut emergency = EmergencyChord::default();
+fn pump(source: &mut RawDevice, mut output: VirtualDevice, plan: Plan, commands: &mpsc::Receiver<Control>, stop: &AtomicBool, kind: InputKind, guard: &(dyn Fn() -> Result<(), String> + Send + Sync), wake: &Wake) -> Result<(),String> {
+    let mut engine = Engine::new(plan); let mut frame = Vec::with_capacity(32); let mut out = Vec::with_capacity(32); let mut emergency = EmergencyChord::default();
     let result = (|| {
+        let input_fd = source.as_fd().try_clone_to_owned().map_err(|e| e.to_string())?;
         let mut authorization = CaptureAuthorization { guard, last_check: None };
         while !stop.load(Ordering::Relaxed) {
             authorization.check()?;
@@ -189,21 +238,22 @@ fn pump(source: &mut RawDevice, mut output: VirtualDevice, plan: Plan, commands:
                 let result = emit(&mut output, &engine.replace(plan));
                 let _ = ack.send(result.clone()); result?;
             }
-            let events: Vec<_> = match source.fetch_events() {
-                Ok(events) => events.collect(), Err(e) if e.kind() == io::ErrorKind::WouldBlock => { thread::sleep(Duration::from_millis(2)); continue; },
+            let mut events = match source.fetch_events() {
+                Ok(events) => events.peekable(), Err(e) if e.kind() == io::ErrorKind::WouldBlock => { wake.wait(&input_fd, authorization.remaining())?; continue; },
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
                 Err(e) => return Err(error("Dispositivo desconectado ou leitura interrompida", e)),
             };
-            if events.is_empty() { return Err("O dispositivo encerrou o fluxo de eventos.".into()); }
+            if events.peek().is_none() { return Err("O dispositivo encerrou o fluxo de eventos.".into()); }
             for event in events {
                 if event.event_type() == EventType::SYNCHRONIZATION {
                     if event.code() == 3 { return Err("O fluxo do dispositivo perdeu eventos. Remapeamento pausado; ative novamente.".into()); }
                     if event.code() == 0 {
-                        let mut out = vec![];
+                        out.clear();
                         for input in frame.drain(..) {
                             if kind == InputKind::Keyboard && emergency.event(input) {
                                 return Err("Teclado pausado pelo atalho físico de emergência Ctrl + Alt + Pause.".into());
                             }
-                            out.extend(engine.event(input));
+                            engine.event_into(input, &mut out);
                         }
                         emit(&mut output, &out)?;
                     }
@@ -275,7 +325,8 @@ fn isolated_test(kind: InputKind) -> Result<(),String> {
     let source_code = if kind == InputKind::Mouse { KeyCode::BTN_SIDE.0 } else { KeyCode::KEY_CAPSLOCK.0 };
     let plan = Plan(std::collections::BTreeMap::from([(source_code,vec![KeyCode::KEY_V.0])]));
     let (send, commands) = mpsc::sync_channel(2); let stop = Arc::new(AtomicBool::new(false)); let worker_stop = stop.clone();
-    let worker = thread::spawn(move || pump(&mut source, output, plan, &commands, &worker_stop, kind, &|| Ok(())));
+    let wake = Arc::new(Wake::new()?); let worker_wake = wake.clone();
+    let worker = thread::spawn(move || pump(&mut source, output, plan, &commands, &worker_stop, kind, &|| Ok(()), &worker_wake));
     let result = (|| {
         let button = |value| InputEvent::new(EventType::KEY.0,source_code,value);
         input.emit(&[button(1),button(0)]).map_err(|e| e.to_string())?;
@@ -288,6 +339,7 @@ fn isolated_test(kind: InputKind) -> Result<(),String> {
         }
         let (ack, recv) = mpsc::sync_channel(1);
         send.send(Control::Apply(Plan(std::collections::BTreeMap::from([(source_code,vec![KeyCode::KEY_C.0])])),ack)).map_err(|e| e.to_string())?;
+        wake.notify()?;
         recv.recv_timeout(Duration::from_secs(3)).map_err(|e| e.to_string())??;
         if read_keys(&mut reader,1)? != vec![(KeyCode::KEY_V.0,0)] { return Err("A troca de perfil não liberou a tecla anterior.".into()); }
         input.emit(&[button(0),button(1),button(0)]).map_err(|e| e.to_string())?;
@@ -303,7 +355,7 @@ fn isolated_test(kind: InputKind) -> Result<(),String> {
     })();
     // Destroy input while still grabbed, even on errors with a held test button.
     // Keep the output reader grabbed until the worker destroys its uinput output.
-    drop(input); stop.store(true,Ordering::Relaxed); drop(send);
+    drop(input); stop.store(true,Ordering::Relaxed); let _ = wake.notify(); drop(send);
     let cleanup = worker.join().map_err(|_| "Falha na tarefa de teste.".to_string())?;
     if let Err(e) = cleanup {
         // The fixture was deliberately disconnected before releasing its grab.
@@ -315,6 +367,60 @@ fn isolated_test(kind: InputKind) -> Result<(),String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{io::Write, os::unix::net::UnixStream};
+
+    // No uinput permissions or physical input needed: exercise the same wait path.
+    #[test]
+    fn idle_wait_wakes_for_input_and_disconnect() {
+        let (source, mut producer) = UnixStream::pair().unwrap();
+        let wake = Arc::new(Wake::new().unwrap());
+        let waiting = wake.clone();
+        let (done, result) = mpsc::channel();
+        let worker = thread::spawn(move || {
+            waiting.wait(&source, Duration::from_secs(10)).unwrap();
+            done.send(()).unwrap();
+            source
+        });
+        producer.write_all(&[1]).unwrap();
+        result.recv_timeout(Duration::from_secs(2)).expect("input failed to wake reader");
+        let source = worker.join().unwrap();
+        let mut byte = [0u8; 1]; rustix::io::read(&source, &mut byte).unwrap();
+        drop(producer);
+        let started = Instant::now();
+        wake.wait(&source, Duration::from_secs(10)).unwrap();
+        assert!(started.elapsed() < Duration::from_secs(2), "disconnect failed to wake reader");
+    }
+
+    #[test]
+    fn idle_wait_observes_queued_and_concurrent_control_notifications() {
+        let (source, _producer) = UnixStream::pair().unwrap();
+        let wake = Arc::new(Wake::new().unwrap());
+        wake.notify().unwrap(); wake.notify().unwrap();
+        wake.wait(&source, Duration::from_secs(10)).unwrap();
+        // The aggregated counter was drained; a fresh notification must also wake it.
+        let waiting = wake.clone(); let (done, result) = mpsc::channel();
+        let worker = thread::spawn(move || {
+            waiting.wait(&source, Duration::from_secs(10)).unwrap();
+            done.send(()).unwrap();
+        });
+        wake.notify().unwrap();
+        result.recv_timeout(Duration::from_secs(2)).expect("control failed to wake idle reader");
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn idle_wait_retains_authorization_deadline() {
+        let (source, _producer) = UnixStream::pair().unwrap();
+        let wake = Wake::new().unwrap();
+        let guard = || Ok(());
+        let mut authorization = CaptureAuthorization { guard: &guard, last_check: None };
+        authorization.check().unwrap();
+        let deadline = authorization.last_check.unwrap() + Duration::from_millis(100);
+        wake.wait(&source, authorization.remaining()).unwrap();
+        assert!(Instant::now() >= deadline);
+        assert_eq!(authorization.remaining(), Duration::ZERO);
+    }
+
     #[test]
     fn logitech_composite_mouse_accepts_keyboard_media_and_volume_capabilities() {
         assert!(physical_mouse(DeviceKind::Composite, DeviceConnection::Usb, "Logitech G Pro"));
