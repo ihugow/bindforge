@@ -133,6 +133,8 @@ fornecer outros IDs. Consulte os valores observados e configure regras explícit
 
 ## Frontend React e shell Tauri 2
 
+Para trabalhar sem reinstalar o RPM, veja o [guia de desenvolvimento local](docs/desenvolvimento.md), com os comandos da interface e do daemon.
+
 Requer Node 22.6+ e npm (os testes usam remoção nativa de tipos TypeScript). Na pasta raiz:
 
 ```bash

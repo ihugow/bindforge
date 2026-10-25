@@ -1,8 +1,8 @@
 # Backend experimental de mouse e teclado no Linux
 
 O daemon `--kde` disponibiliza o backend, mas sempre inicia **pausado**. A UI oferece
-**Início → Remapeamento do mouse**, seleção de um cadastro salvo e ações **Ativar**
-e **Pausar remapeamento**. Abrir o app, carregar perfis e detectar janelas não ativa
+**Dispositivos**, com ações **Ativar**, **Pausar** e **Acesso** no cartão
+de cada cadastro salvo. Abrir o app, carregar perfis e detectar janelas não ativa
 captura física. Reiniciar o daemon também não retoma uma captura anterior.
 
 Consulte também os [critérios de compatibilidade e modelos validados](devices.md#compatibilidade-de-remapeamento).

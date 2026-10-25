@@ -1,6 +1,6 @@
 # Serviço do usuário e pacote Fedora/KDE
 
-O painel **Início → Serviço do BindForge** gerencia somente
+O painel **Configurações → Serviço do BindForge** gerencia somente
 `bindforge-daemon.service` no systemd do usuário. Iniciar e reiniciar aguardam
 o job do systemd terminar e o nome D-Bus pertencer ao PID da unidade. Parar
 aguarda a unidade ficar inativa e o nome D-Bus desaparecer. Operações são
@@ -69,7 +69,7 @@ e `/dev/uinput` do backend existente.
 Instale o RPM pelo gerenciador gráfico ou, na raiz do repositório:
 
 ```bash
-sudo dnf install './target/release/bundle/rpm/BindForge-0.1.0-2.x86_64.rpm'
+sudo dnf install './target/release/bundle/rpm/BindForge-0.1.0-3.x86_64.rpm'
 ```
 
 Abra **BindForge** no menu, inicie o serviço e ative o mouse desejado.

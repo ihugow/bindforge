@@ -47,6 +47,48 @@ que corresponde e menor ID lexical. O formulário informa sobreposições e ofer
 prioridade nas opções avançadas. Regras com executável ou título são preservadas
 integralmente ao editar nome, prioridade e ativação; suas associações ficam bloqueadas.
 
+A edição é aberta pelo botão de lápis no card. **Excluir perfil** fica no rodapé
+do modal de edição e abre uma confirmação. Cancelar a confirmação preserva o
+rascunho; confirmar remove o perfil e fecha a edição. O perfil Padrão não oferece
+exclusão.
+
+## Ícones dos perfis
+
+Cada perfil aparece em um card e pode ter uma imagem própria. O envio manual aceita
+PNG, JPG, WebP e ICO de até 5 MB; a imagem é convertida para PNG ao salvar. Em **Editar perfil**,
+use **Usar ícone do aplicativo** para procurar os ícones dos IDs associados. Um
+único resultado é selecionado diretamente; com vários resultados, escolha o
+aplicativo que representará o perfil. Se nada for encontrado, o ícone atual é
+preservado e o envio manual de imagem continua disponível.
+
+No Linux, a busca usa as entradas `.desktop` e o tema de ícones do sistema,
+incluindo correspondência por `StartupWMClass`. IDs `steam:ID` usam os ícones
+instalados dos jogos e, quando disponíveis, imagens do cache local da Steam,
+incluindo a instalação Flatpak. A busca não baixa imagens nem executa aplicativos.
+
+**Detectar pela janela** também procura o ícone do aplicativo detectado quando o
+perfil ainda não tem imagem. Um ícone escolhido anteriormente não é substituído.
+A imagem só é gravada ao salvar o perfil.
+
+O campo opcional `icon` armazena um PNG em data URL, com até 96 px no maior lado
+para ícones locais e até 64 KiB de conteúdo base64. Configurações antigas, sem esse
+campo, continuam válidas e usam o símbolo padrão. **Usar ícone padrão** remove a
+imagem. Como a imagem fica no perfil, ela continua visível se o aplicativo original
+for desinstalado ou seu tema mudar.
+
+A fixture `apps/desktop/tests/profile-icons-browser.html` permite conferir seleção
+entre aplicativos, ausência de ícone e captura simulada sem alterar configurações
+reais. Os testes nativos de `application_icons` cobrem correspondência e PNG; a
+verificação opcional de ícones instalados requer uma sessão gráfica:
+
+```bash
+BINDFORGE_ICON_TEST_IDS='org.kde.konsole,steam:1808500' \
+  cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml \
+  application_icons::tests::installed_application_icons -- --ignored --test-threads=1
+```
+
+Use IDs de aplicativos instalados na sua máquina nesse comando.
+
 ## Armazenamento
 
 - Linux: `$XDG_CONFIG_HOME/bindforge/profiles.json`, com fallback para
