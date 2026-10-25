@@ -3,12 +3,12 @@ import { Modal } from "./modal";
 import { deviceAccessApi, type AccessAction, type AccessStatus } from "./device-access";
 import type { ConfiguredDevice } from "./configured-devices";
 
-export function DeviceAccessButton({ device, disabled = false, api = deviceAccessApi, onChanged }: {
-  device?: ConfiguredDevice; disabled?: boolean; api?: typeof deviceAccessApi; onChanged?: () => void;
+export function DeviceAccessButton({ device, disabled = false, api = deviceAccessApi, onChanged, compact = false }: {
+  device?: ConfiguredDevice; disabled?: boolean; api?: typeof deviceAccessApi; onChanged?: () => void; compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
-  return <><button type="button" className="secondary-button" ref={trigger} disabled={disabled || !device} onClick={() => setOpen(true)}>Gerenciar acesso{device ? ` · ${device.name}` : ""}</button>
+  return <><button type="button" className="secondary-button" ref={trigger} disabled={disabled || !device} onClick={() => setOpen(true)} aria-label={compact ? `Gerenciar acesso de ${device?.name ?? "dispositivo"}` : undefined}>{compact ? "Acesso" : <>Gerenciar acesso{device ? ` · ${device.name}` : ""}</>}</button>
     {open && device && <DeviceAccessPanel key={`${device.id}:${device.interface_id}`} device={device} api={api} close={() => setOpen(false)} restoreFocus={trigger} onChanged={onChanged} />}
   </>;
 }

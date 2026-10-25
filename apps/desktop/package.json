@@ -11,6 +11,7 @@
     "package:fedora": "python3 ../../tools/package-fedora.py"
   },
   "dependencies": {
+    "@radix-ui/react-select": "^2.4.1",
     "@tauri-apps/api": "^2.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

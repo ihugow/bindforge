@@ -5,9 +5,9 @@ export type Binding = {
   input: { Key: string } | { MouseButton: number };
   action: { KeyChord: string[] } | { MouseButton: number } | "Disabled";
 };
-export type Profile = { id: string; name: string; enabled: boolean; priority: number; rules: Rule[]; bindings: Binding[] };
+export type Profile = { id: string; name: string; icon?: string | null; enabled: boolean; priority: number; rules: Rule[]; bindings: Binding[] };
 export type Config = { devices?: ConfiguredDevice[]; version: number; revision: number; fallback_id: string; profiles: Profile[] };
-export type Draft = { id: string | null; name: string; apps: string; priority: string; enabled: boolean; source: string };
+export type Draft = { icon?: string | null; id: string | null; name: string; apps: string; priority: string; enabled: boolean; source: string };
 export function appIds(value: string): string[] {
   return [...new Set(value.split(/\r?\n/).map(s => s.trim()).filter(Boolean))];
 }
@@ -23,7 +23,7 @@ export function updateProfile(config: Config, draft: Draft, newId: string): Conf
   const source = existing ?? config.profiles.find(p => p.id === draft.source);
   const advanced = existing?.rules.some(r => r.executable !== null || r.title_contains !== null);
   const profile: Profile = {
-    id: existing?.id ?? newId, name, enabled: fallback ? true : draft.enabled, priority,
+    id: existing?.id ?? newId, name, icon: draft.icon === undefined ? existing?.icon ?? null : draft.icon, enabled: fallback ? true : draft.enabled, priority,
     // Preserve advanced predicates when editing an existing rule's application list.
     rules: fallback ? [] : advanced ? structuredClone(existing!.rules) : apps.map(app_id => existing?.rules.find(r => r.app_id === app_id) ?? { app_id, executable: null, title_contains: null }),
     bindings: structuredClone(source?.bindings ?? []),

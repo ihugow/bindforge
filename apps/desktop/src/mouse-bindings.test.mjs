@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mouseBinding, setMouseBinding, configWithBindings, keyChord } from "./mouse-bindings.ts";
+import { mouseBinding, setMouseBinding, configWithBindings, keyChord, mouseActionDraft, mouseDraftBindings, mouseDraftChanged } from "./mouse-bindings.ts";
 const general = { device_id: null, input: { MouseButton: 8 }, action: { KeyChord: ["V"] } };
 const specific = { device_id: "mouse-a", input: { MouseButton: 8 }, action: "Disabled" };
 test("specific mouse actions override general ones and reset restores the general mapping", () => {
@@ -32,4 +32,27 @@ test("keyboard chords accept single keys and reject empty, repeated or oversized
     assert.throws(() => keyChord(keys));
   }
   assert.throws(() => keyChord("A\u0000B"));
+});
+
+
+test("incomplete side-panel shortcuts remain dirty and cannot discard valid actions during save", () => {
+  const original = [general, specific];
+  const drafts = { 8: { kind: "chord", keys: "Ctrl +", target: 1 }, 9: { kind: "chord", keys: "C", target: 1 } };
+  assert.equal(mouseDraftChanged(original, "mouse-a", drafts), true);
+  assert.throws(() => mouseDraftBindings(original, "mouse-a", drafts));
+  assert.deepEqual(original, [general, specific]);
+});
+
+test("side-panel changes preserve other devices and support reset to general actions", () => {
+  const other = { device_id: "mouse-b", input: { MouseButton: 9 }, action: { KeyChord: ["G"] } };
+  const keyboard = { device_id: "keyboard", input: { Key: "CapsLock" }, action: "Disabled" };
+  const original = [general, specific, other, keyboard];
+  const drafts = { 8: mouseActionDraft(), 9: { kind: "chord", keys: "Ctrl + C", target: 1 } };
+  const next = mouseDraftBindings(original, "mouse-a", drafts);
+  assert.equal(mouseBinding(next, "mouse-a", 8, true), general);
+  assert.deepEqual(mouseBinding(next, "mouse-a", 9).action, { KeyChord: ["Ctrl", "C"] });
+  assert.equal(next.find(b => b.device_id === "mouse-b"), other);
+  assert.equal(next.find(b => b.device_id === "keyboard"), keyboard);
+  assert.equal(mouseDraftChanged(next, "mouse-a", { 9: { kind: "chord", keys: "Ctrl + C", target: 1 } }), false);
+  assert.equal(mouseDraftChanged(original, "mouse-a", { 8: mouseActionDraft(specific.action) }), false);
 });

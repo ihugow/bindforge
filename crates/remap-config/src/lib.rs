@@ -52,6 +52,13 @@ impl Config {
             if !valid { return Err("Propriedades do dispositivo inválidas.".into()); }
         }
         for p in &self.profiles {
+            if let Some(icon) = &p.icon {
+                let payload = icon.strip_prefix("data:image/png;base64,");
+                if !payload.is_some_and(|data| data.starts_with("iVBORw0KGgo") && data.len() <= 65536 && data.len() % 4 == 0
+                    && data.bytes().all(|b| b.is_ascii_alphanumeric() || b"+/=".contains(&b))) {
+                    return Err("Ícone do perfil inválido. Use uma imagem PNG de até 64 KiB em base64.".into());
+                }
+            }
             if !text(&p.id, 128) || !text(&p.name, 128) { return Err("Nome e ID do perfil devem ter até 128 bytes e não conter controles.".into()); }
             if p.id != self.fallback_id && p.rules.is_empty() { return Err("Associe pelo menos um aplicativo ao perfil.".into()); }
             if p.rules.len() > 256 || p.bindings.len() > 512 { return Err("Limite de regras ou ações excedido.".into()); }
@@ -154,6 +161,28 @@ pub fn save(path: &Path, mut config: Config, expected_revision: u32) -> Result<C
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn profile_icons_roundtrip_and_legacy_profiles_keep_the_default() {
+        let legacy = serde_json::to_value(Config::default()).unwrap();
+        assert!(legacy["profiles"][0].get("icon").is_none());
+        let mut config: Config = serde_json::from_value(legacy).unwrap();
+        assert!(config.profiles[0].icon.is_none());
+        let icon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII=";
+        config.profiles[0].icon = Some(icon.into());
+        let path = path();
+        let saved = save(&path, config.clone(), 0).unwrap();
+        assert_eq!(load(&path).unwrap(), saved);
+        assert_eq!(saved.profiles[0].icon.as_deref(), Some(icon));
+        for invalid in ["https://example.com/icon.png".to_string(), "data:image/svg+xml;base64,PHN2Zz4=".into(), format!("data:image/png;base64,iVBORw0KGgo{}", "A".repeat(65536))] {
+            config.profiles[0].icon = Some(invalid);
+            assert!(config.validate().is_err());
+        }
+        config.profiles[0].icon = None;
+        let reset = save(&path, config, saved.revision).unwrap();
+        assert!(load(&path).unwrap().profiles[0].icon.is_none());
+        assert_eq!(reset.profiles[0].bindings, saved.profiles[0].bindings);
+        fs::remove_dir_all(path.parent().unwrap()).unwrap();
+    }
     #[test]
     fn brand_migration_preserves_profiles_revisions_and_existing_files() {
         let root = path().parent().unwrap().to_path_buf();

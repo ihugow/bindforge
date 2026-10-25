@@ -17,6 +17,8 @@ remap-core = { path = "../../../crates/remap-core" }
 unsafe_code = "forbid"
 
 [target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+base64 = "0.22"
 zbus = "5.19"
 remap-ipc = { path = "../../../crates/remap-ipc", features = ["dbus"] }
 bindforge-access = { path = "../../../crates/bindforge-access" }

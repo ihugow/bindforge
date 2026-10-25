@@ -248,7 +248,9 @@ dependencies = [
 name = "bindforge-desktop"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "bindforge-access",
+ "gtk",
  "remap-config",
  "remap-core",
  "remap-ipc",

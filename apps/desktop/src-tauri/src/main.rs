@@ -8,6 +8,29 @@ mod daemon_service;
 #[cfg(target_os = "linux")]
 mod device_access;
 
+#[cfg(target_os = "linux")]
+mod application_icons;
+
+#[tauri::command]
+async fn find_application_icons(app_ids: Vec<String>, window: tauri::WebviewWindow) -> Result<Vec<application_icon_types::ApplicationIcon>, String> {
+    if window.label() != "main" { return Err("Unsupported window".into()); }
+    #[cfg(target_os = "linux")]
+    {
+        let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+        window.run_on_main_thread(move || { let _ = sender.send(application_icons::find(app_ids)); }).map_err(|e| e.to_string())?;
+        tauri::async_runtime::spawn_blocking(move || receiver.recv().map_err(|e| e.to_string())?)
+            .await.map_err(|e| e.to_string())?
+    }
+    #[cfg(not(target_os = "linux"))]
+    { let _ = app_ids; Err("A busca de ícones locais está disponível no Linux.".into()) }
+}
+mod application_icon_types {
+    #[cfg(target_os = "linux")]
+    pub use super::application_icons::ApplicationIcon;
+    #[cfg(not(target_os = "linux"))]
+    #[derive(serde::Serialize)] pub struct ApplicationIcon {}
+}
+
 #[tauri::command]
 async fn get_device_access(device_id: String, window: tauri::WebviewWindow) -> Result<access_types::Status, String> {
     if window.label() != "main" { return Err("Unsupported window".into()); }
@@ -419,6 +442,6 @@ fn main() {
             }
         }
     });
-    builder.invoke_handler(tauri::generate_handler![get_daemon_service, control_daemon_service, get_device_access, configure_device_access, get_input_status, start_mouse, pause_mouse, get_keyboard_status, start_keyboard, pause_keyboard, get_kwin_integration, configure_kwin_integration, start_window_capture, stop_window_capture, load_profiles, save_profiles, preview_profile, get_daemon_status, list_devices, start_daemon_status, stop_daemon_status])
+    builder.invoke_handler(tauri::generate_handler![find_application_icons, get_daemon_service, control_daemon_service, get_device_access, configure_device_access, get_input_status, start_mouse, pause_mouse, get_keyboard_status, start_keyboard, pause_keyboard, get_kwin_integration, configure_kwin_integration, start_window_capture, stop_window_capture, load_profiles, save_profiles, preview_profile, get_daemon_status, list_devices, start_daemon_status, stop_daemon_status])
         .run(tauri::generate_context!()).expect("failed to start desktop shell");
 }

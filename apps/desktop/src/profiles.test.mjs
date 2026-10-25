@@ -41,3 +41,13 @@ test("deletion preserves the fallback and other profiles without mutating the lo
   assert.throws(() => removeProfile(c, c.fallback_id), /Padrão/);
   assert.throws(() => removeProfile(c, "missing"), /não existe/);
 });
+test("profile icons survive edits and binding copies and can return to the default", () => {
+  const icon = "data:image/png;base64,iVBORw0KGgo=";
+  const c = config(); c.profiles[1].icon = icon;
+  const edited = updateProfile(c, { ...draft(), id: "browser", icon }, "unused");
+  assert.equal(edited.profiles[1].icon, icon);
+  assert.equal(updateProfile(edited, { ...draft(), id: "browser" }, "unused").profiles[1].icon, icon);
+  assert.equal(updateProfile(edited, { ...draft(), id: "browser", icon: null }, "unused").profiles[1].icon, null);
+  assert.equal(updateProfile(c, { ...draft(), source: "browser" }, "new").profiles[2].icon, null, "copy actions without inheriting the source icon");
+  assert.equal(c.profiles[1].icon, icon);
+});

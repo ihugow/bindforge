@@ -3,8 +3,8 @@ export const mouseButtons = [
   { code: 1, name: "Botão esquerdo", x: 36, y: 23 },
   { code: 3, name: "Botão direito", x: 64, y: 23 },
   { code: 2, name: "Roda (clique)", x: 50, y: 22 },
-  { code: 8, name: "Botão lateral 2", x: 18, y: 49 },
-  { code: 9, name: "Botão lateral 1", x: 18, y: 64 },
+  { code: 8, name: "Botão lateral 2", x: 19, y: 41 },
+  { code: 9, name: "Botão lateral 1", x: 19, y: 56 },
 ];
 // Symbolic button IDs follow the existing core convention; scroll is not a button.
 export function mouseControls(count = 5) {
@@ -42,4 +42,23 @@ export function configWithBindings(config: Config, profile: Profile, baseRevisio
   if (config.revision !== baseRevision) throw new Error("Os perfis mudaram desde o início da edição. Descarte as alterações e abra o editor novamente.");
   if (!config.profiles.some(p => p.id === profile.id)) throw new Error("O perfil foi removido. Selecione outro perfil.");
   return { ...config, profiles: config.profiles.map(p => p.id === profile.id ? { ...p, bindings: profile.bindings } : p) };
+}
+
+export type MouseActionDraft = { kind: "original" | "chord" | "mouse" | "disabled"; keys: string; target: number };
+export function mouseActionDraft(action?: MouseAction): MouseActionDraft {
+  return { kind: !action ? "original" : action === "Disabled" ? "disabled" : "KeyChord" in action ? "chord" : "mouse",
+    keys: action && action !== "Disabled" && "KeyChord" in action ? action.KeyChord.join(" + ") : "",
+    target: action && action !== "Disabled" && "MouseButton" in action ? action.MouseButton : 1 };
+}
+export function draftMouseAction(draft: MouseActionDraft): MouseAction | null {
+  return draft.kind === "original" ? null : draft.kind === "disabled" ? "Disabled" : draft.kind === "mouse" ? { MouseButton: draft.target } : keyChord(draft.keys);
+}
+export function mouseDraftBindings(bindings: Binding[], scope: string | null, drafts: Record<number, MouseActionDraft>): Binding[] {
+  return Object.entries(drafts).reduce((next, [code, draft]) => setMouseBinding(next, scope, Number(code), draftMouseAction(draft)), bindings);
+}
+export function mouseDraftChanged(bindings: Binding[], scope: string | null, drafts: Record<number, MouseActionDraft>): boolean {
+  return Object.entries(drafts).some(([code, draft]) => {
+    try { return JSON.stringify(draftMouseAction(draft)) !== JSON.stringify(mouseBinding(bindings, scope, Number(code))?.action ?? null); }
+    catch { return true; }
+  });
 }

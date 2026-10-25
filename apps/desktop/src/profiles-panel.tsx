@@ -1,11 +1,17 @@
+import { AppSelect } from "./app-select";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { profileApi as nativeApi } from "./profile-api";
+import { ProfileIcon, readProfileIcon } from "./profile-icon";
+import { ApplicationIconPicker } from "./application-icon-picker";
+import type { FindApplicationIcons } from "./application-icons";
+import { AppIcon } from "./app-icon";
 import { Modal } from "./modal";
 import { WindowCapturePanel } from "./window-capture-panel";
 import type { CaptureStart } from "./window-capture";
 import { appIds, conflictingProfiles, removeProfile, updateProfile, type Config, type Draft, type Profile } from "./profiles";
 
-export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, captureStart, onConfigChange, active = true, currentConfig }: {
+export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, captureStart, onConfigChange, active = true, currentConfig, findIcons }: {
+  findIcons?: FindApplicationIcons;
   currentConfig?: Config | null; active?: boolean; native: boolean; connected: boolean; onSaved: () => void; api?: typeof nativeApi; captureStart?: CaptureStart; onConfigChange?: (config: Config | null) => void;
 }) {
   const editorTrigger = useRef<HTMLElement | null>(null);
@@ -19,10 +25,14 @@ export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, cap
   const [capturePending, setCapturePending] = useState(false);
   // Preserve the draft across tabs, but never keep a hidden window capture armed.
   useEffect(() => { if (!active) { setCaptureOpen(false); setDeleteId(null); } }, [active]);
+  const [automaticIconApp, setAutomaticIconApp] = useState<string | null>(null);
+  const [iconSearching, setIconSearching] = useState(false);
   const detected = useCallback((appId: string) => {
+    setAutomaticIconApp(appId);
     setDraft(d => d ? { ...d, apps: [...new Set([...appIds(d.apps), appId])].join("\n") } : d);
   }, []);
   const [busy, setBusy] = useState(false);
+  const [iconLoading, setIconLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   useEffect(() => {
@@ -39,12 +49,21 @@ export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, cap
   function edit(profile?: Profile) {
     if (!config) return;
     editorTrigger.current = document.activeElement as HTMLElement;
-    setError(""); setMessage(""); setCaptureOpen(false);
-    setDraft({ id: profile?.id ?? null, name: profile?.name ?? "", apps: profile?.rules.map(r => r.app_id).filter(Boolean).join("\n") ?? "", priority: String(profile?.priority ?? 10), enabled: profile?.enabled ?? true, source: config.fallback_id });
+    setError(""); setMessage(""); setCaptureOpen(false); setAutomaticIconApp(null);
+    setDraft({ icon: profile?.icon ?? null, id: profile?.id ?? null, name: profile?.name ?? "", apps: profile?.rules.map(r => r.app_id).filter(Boolean).join("\n") ?? "", priority: String(profile?.priority ?? 10), enabled: profile?.enabled ?? true, source: config.fallback_id });
   }
   function patch(value: Partial<Draft>) { setDraft(d => d ? { ...d, ...value } : d); }
+  async function chooseIcon(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setIconLoading(true); setError("");
+    try { patch({ icon: await readProfileIcon(file) }); }
+    catch (error) { setError(error instanceof Error ? error.message : String(error)); }
+    finally { setIconLoading(false); }
+  }
   async function save(event: React.FormEvent) {
-    event.preventDefault(); if (!config || !draft || capturePending) return;
+    event.preventDefault(); if (!config || !draft || capturePending || iconLoading || iconSearching || deleteId) return;
     setBusy(true); setError(""); setMessage("");
     try {
       const next = updateProfile(config, draft, `profile-${crypto.randomUUID()}`);
@@ -54,12 +73,15 @@ export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, cap
     } catch (e) { setError(String(e)); } finally { setBusy(false); }
   }
   async function confirmDelete(id: string) {
-    if (!config || busy || draft || deleteId !== id) return;
+    if (!config || busy || !draft || draft.id !== id || deleteId !== id || id === config.fallback_id) return;
     setBusy(true); setError(""); setMessage("");
     try {
       const name = config.profiles.find(p => p.id === id)?.name;
       const saved = await api.save(removeProfile(config, id), config.revision);
-      setConfig(saved); onConfigChange?.(saved); onSaved(); setDeleteId(null);
+      setConfig(saved); onConfigChange?.(saved); onSaved();
+      editorTrigger.current = document.getElementById("profiles-heading");
+      deleteTrigger.current = editorTrigger.current;
+      setDeleteId(null); setDraft(null);
       setMessage(`Perfil “${name}” excluído.${connected ? " O daemon reavalia automaticamente o perfil selecionado." : " A alteração será usada quando o daemon iniciar."}`);
     } catch (e) { setError(String(e)); } finally { setBusy(false); }
   }
@@ -68,30 +90,37 @@ export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, cap
   const conflicts = config && draft ? conflictingProfiles(config, draft) : [];
   const selected = config?.profiles.find(p => p.id === draft?.id);
   const advanced = selected?.rules.some(r => r.executable !== null || r.title_contains !== null) ?? false;
-  return <section aria-labelledby="profiles-heading">
-    <div className="section-heading"><h2 id="profiles-heading">Seus perfis</h2>
-      {native && <div className="button-row"><button type="button" disabled={busy || !!draft || !!deleteId} onClick={reload}>Recarregar lista</button>
+  return <section className="profiles-panel" aria-labelledby="profiles-heading">
+    <div className="section-heading"><h2 id="profiles-heading" tabIndex={-1}>Seus perfis</h2>
+      {native && <div className="button-row"><button type="button" className="secondary-button" disabled={busy || !!draft || !!deleteId} onClick={reload}>Recarregar lista</button>
         <button type="button" disabled={!config || busy || !!draft || !!deleteId} onClick={() => edit()}>Criar perfil</button></div>}
     </div>
     {!native && <p>Abra o aplicativo nativo para criar e salvar perfis.</p>}
     {native && !config && !error && <p role="status">Carregando perfis…</p>}
     {config && <><p className="hint">O perfil Padrão é usado quando nenhum aplicativo corresponde. Cada perfil tem suas próprias ações, sem herança automática.</p>
-      <ul className="profile-list">{config.profiles.map(p => <li key={p.id}>
-        <div><strong>{p.name}</strong><span>{p.id === config.fallback_id ? "Padrão · todos os demais aplicativos" : `${p.enabled ? "Ativo" : "Desativado"} · ${p.rules.map(r => r.app_id ?? "Regra avançada").join(", ")}`}</span>
-        <span>{p.bindings.length} ação(ões) · prioridade {p.priority}</span></div>
-        <div className="button-row profile-actions">
-          <button type="button" disabled={busy || !!draft || !!deleteId} onClick={() => edit(p)}>Editar</button>
-          {p.id !== config.fallback_id && <button type="button" className="danger-button" aria-label={`Excluir perfil ${p.name}`}
-            disabled={busy || !!draft || !!deleteId} onClick={() => { deleteTrigger.current = document.activeElement as HTMLElement; setDeleteId(p.id); setError(""); setMessage(""); }}>Excluir</button>}
+      <ul className="profile-list">{config.profiles.map(p => <li key={p.id} className="profile-card">
+        <div className="profile-card-header"><ProfileIcon icon={p.icon} /><span className="status-chip" data-state={p.enabled ? "active" : "paused"}>{p.id === config.fallback_id ? "Padrão" : p.enabled ? "Habilitado" : "Desativado"}</span></div>
+        <div className="profile-card-details"><h3>{p.name}</h3><p>{p.id === config.fallback_id ? "Todos os demais aplicativos" : p.rules.map(r => r.app_id ?? "Regra avançada").join(", ")}</p></div>
+        <div className="profile-card-footer"><p className="profile-card-meta">{p.bindings.length} ação(ões) · prioridade {p.priority}</p>
+          <button type="button" className="secondary-button profile-edit-button" aria-label={`Editar perfil ${p.name}`} title={`Editar perfil ${p.name}`}
+            disabled={busy || !!draft || !!deleteId} onClick={() => edit(p)}><AppIcon name="edit" /></button>
         </div>
-
       </li>)}</ul></>}
-    {active && draft && config && <Modal title={draft.id ? "Editar perfil" : "Criar perfil"} busy={busy} initialFocus="#profile-name" restoreFocus={editorTrigger}
+    {active && draft && config && <Modal title={draft.id ? "Editar perfil" : "Criar perfil"} busy={busy || iconLoading || iconSearching || !!deleteId} initialFocus="#profile-name" restoreFocus={editorTrigger}
       onDismiss={() => { setDraft(null); setCaptureOpen(false); setError(""); }}>
     <form className="profile-form" onSubmit={save}>
-      <fieldset disabled={busy}>
+      <fieldset disabled={busy || iconLoading || iconSearching || !!deleteId}>
         <label htmlFor="profile-name">Nome do perfil</label>
         <input id="profile-name" autoFocus required maxLength={128} value={draft.name} onChange={e => patch({ name: e.target.value })} />
+        <div className="profile-icon-editor"><ProfileIcon icon={draft.icon} /><div>
+          <label htmlFor="profile-icon-file">Ícone do perfil</label>
+          <input id="profile-icon-file" type="file" accept="image/png,image/jpeg,image/webp,image/x-icon,image/vnd.microsoft.icon,.ico" aria-describedby="profile-icon-hint" onChange={chooseIcon} />
+          <p className="hint" id="profile-icon-hint">PNG, JPG, WebP ou ICO de até 5 MB. Sem imagem, usamos o ícone padrão.</p>
+          {!fallback && <ApplicationIconPicker apps={draft.apps} automaticAppId={automaticIconApp} hasIcon={!!draft.icon || iconLoading}
+            onSelect={icon => patch({ icon })} onPending={setIconSearching} find={findIcons} />}
+          {draft.icon && <button type="button" className="secondary-button" onClick={() => patch({ icon: null })}>Usar ícone padrão</button>}
+          {iconLoading && <p role="status">Preparando ícone…</p>}
+        </div></div>
         {!fallback && <><label htmlFor="profile-apps">IDs dos aplicativos — um por linha</label>
           <textarea id="profile-apps" required={!advanced} rows={3} value={draft.apps} onChange={e => patch({ apps: e.target.value })} placeholder={"firefox\norg.kde.konsole"} disabled={advanced || busy} />
           <p className="hint">O ID deve corresponder exatamente ao informado pelo KDE. {advanced && "Este perfil tem regras avançadas; suas associações são preservadas nesta tela."}</p>
@@ -100,19 +129,25 @@ export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, cap
             {!connected && <p className="hint">Conecte o daemon KDE para usar a detecção automática.</p>}
           </>}</>}
         {!draft.id && <><label htmlFor="profile-source">Como começar</label>
-          <select id="profile-source" value={draft.source} onChange={e => patch({ source: e.target.value })}>
+          <AppSelect id="profile-source" value={draft.source} onValueChange={value => patch({ source: value })}>
             <option value="">Sem remapeamentos</option>
             {config.profiles.map(p => <option key={p.id} value={p.id}>Copiar ações de {p.name}</option>)}
-          </select><p className="hint">A cópia é independente. Alterações na origem não mudam este perfil.</p></>}
+          </AppSelect><p className="hint">A cópia é independente. Alterações na origem não mudam este perfil.</p></>}
         {!fallback && <><label className="checkbox-label"><input type="checkbox" checked={draft.enabled} onChange={e => patch({ enabled: e.target.checked })} /> Perfil habilitado</label>
           <details open={conflicts.length > 0}><summary>Prioridade e conflitos</summary>
             <label htmlFor="profile-priority">Prioridade — o maior número vence</label>
             <input id="profile-priority" type="number" step={1} min={-2147483648} max={2147483647} required value={draft.priority} onChange={e => patch({ priority: e.target.value })} />
             {conflicts.length > 0 && <p role="status">Também associado a: {conflicts.map(p => `${p.name} (prioridade ${p.priority})`).join(", ")}. Em empate, vence a regra mais específica e depois o menor ID.</p>}
           </details></>}
-        <p className="hint">As ações existentes são preservadas. Configure os botões do mouse na aba Início. Nenhuma entrada é remapeada nesta versão.</p>
+        <p className="hint">As ações existentes são preservadas. Configure os botões e teclas em Dispositivos. Salvar um perfil não ativa o remapeamento.</p>
         {error && <p role="alert">{error}</p>}
-        <div className="button-row"><button type="submit" disabled={capturePending}>{busy ? "Salvando…" : "Salvar alterações"}</button><button type="button" onClick={() => { setDraft(null); setCaptureOpen(false); setError(""); }}>Cancelar</button></div>
+        <div className="profile-editor-actions">
+          <div className="button-row"><button type="submit" disabled={capturePending}>{busy ? "Salvando…" : "Salvar alterações"}</button><button type="button" className="secondary-button" onClick={() => { setDraft(null); setCaptureOpen(false); setError(""); }}>Cancelar</button></div>
+          {draft.id && !fallback && <button type="button" className="danger-button" disabled={capturePending || captureOpen} onClick={() => {
+            deleteTrigger.current = document.activeElement as HTMLElement;
+            setDeleteId(draft.id); setError(""); setMessage("");
+          }}>Excluir perfil</button>}
+        </div>
       </fieldset>
     </form>
     {captureOpen && <Modal title="Detectar aplicativo pela janela" compact restoreFocus={captureTrigger} onDismiss={() => setCaptureOpen(false)}>

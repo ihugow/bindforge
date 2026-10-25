@@ -20,7 +20,7 @@ const daemon = { phase: 'connected', status: { protocol_version: 1, simulation: 
 function Fixture() {
  const [config, setConfig] = React.useState(stored);
  return React.createElement(WorkspaceTabs, {
-  home: active => React.createElement(HomePanel, { active, config, native: true, daemon, onConfigChange: setConfig, onSaved: () => {}, read, api }),
+  home: active => React.createElement(HomePanel, { active, config, native: true, daemon, onConfigChange: setConfig, onSaved: () => {}, read, api, inputApis: { mouse: { status: async () => ({ active: false, device_id: "", message: "" }), start: async device_id => ({ active: true, device_id, message: "" }), pause: async () => ({ active: false, device_id: "", message: "" }) }, keyboard: { status: async () => ({ active: false, device_id: "", message: "" }), start: async device_id => ({ active: true, device_id, message: "" }), pause: async () => ({ active: false, device_id: "", message: "" }) } } }),
   profiles: active => React.createElement(ProfilesPanel, { active, currentConfig: config, onConfigChange: setConfig, native: true, connected: true, onSaved: () => {}, api }),
   devices: React.createElement(DevicesPanel, { config, onConfigChange: setConfig, api, native: true, connected: true, read }),
  });

@@ -4,7 +4,7 @@ fn rule(app: &str) -> AppRule {
     AppRule { app_id: Some(app.into()), ..Default::default() }
 }
 fn profile(id: &str, priority: i32, rules: Vec<AppRule>) -> Profile {
-    Profile { id: id.into(), name: id.into(), enabled: true, priority, rules, bindings: vec![] }
+    Profile { icon: None, id: id.into(), name: id.into(), enabled: true, priority, rules, bindings: vec![] }
 }
 fn fallback() -> Profile { profile("default", 999, vec![]) }
 fn window() -> ActiveWindow {

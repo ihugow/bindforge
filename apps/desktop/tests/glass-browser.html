@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BindForge — prévia do tema Glass</title><body><main class="app-root" id="root"></main>
+<script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { WorkspaceTabs } from '../src/workspace-tabs.tsx';
+import { HomePanel } from '../src/home-panel.tsx';
+import { ProfilesPanel } from '../src/profiles-panel.tsx';
+import { DevicesPanel } from '../src/devices-panel.tsx';
+import { NativeInputPanel } from '../src/native-input-panel.tsx';
+import { DaemonServicePanel } from '../src/daemon-service-panel.tsx';
+import { KwinIntegrationPanel } from '../src/kwin-integration-panel.tsx';
+import '../src/style.css';
+
+// In-memory fixture only. No native IPC, physical capture or system changes.
+let stored = { version: 1, revision: 0, fallback_id: 'default', devices: [
+  { id: 'configured-mouse', name: 'Logitech G PRO Wireless', kind: 'mouse', interface_id: 'mouse', button_count: 5, layout: null },
+  { id: 'configured-keyboard', name: 'Aula F99', kind: 'keyboard', interface_id: 'keyboard', button_count: null, layout: 'abnt2' },
+], profiles: [
+  { id: 'default', name: 'Padrão', enabled: true, priority: 0, rules: [], bindings: [] },
+  { id: 'arc', name: 'Arc Raiders', enabled: true, priority: 10, rules: [{ app_id: 'steam:1808500', executable: null, title_contains: null }], bindings: [] },
+  { id: 'work', name: 'Trabalho', enabled: true, priority: 10, rules: [{ app_id: 'firefox', executable: null, title_contains: null }], bindings: [] },
+] };
+const api = {
+  load: async () => structuredClone(stored),
+  save: async (config, revision) => {
+    if (revision !== stored.revision) throw new Error('Conflito de revisão. Recarregue o perfil.');
+    stored = structuredClone({ ...config, revision: revision + 1 }); return structuredClone(stored);
+  },
+};
+const read = async () => [
+  { id: 'mouse', name: 'Logitech G PRO Wireless', kind: 'mouse', connection: 'usb', vendor_id: 1133, product_id: 0, battery: { percentage: 78, state: 'discharging' } },
+  { id: 'keyboard', name: 'Aula F99', kind: 'keyboard', connection: 'usb', vendor_id: 13652, product_id: 64009 },
+];
+let service = { active_state: 'active', autostart: false, connected: true, external: false, binary_available: true, result: 'success', exit_status: 0 };
+const serviceApi = {
+  status: async () => structuredClone(service),
+  control: async action => {
+    if (action === 'enable_autostart') service.autostart = true;
+    else if (action === 'disable_autostart') service.autostart = false;
+    else { service.active_state = action === 'stop' ? 'inactive' : 'active'; service.connected = action !== 'stop'; }
+    return structuredClone(service);
+  },
+};
+const integration = { kwin_available: true, loaded: true, daemon_connected: true, focus_received: true, legacy_disabled: true, message: '' };
+const integrationApi = { status: async () => integration, configure: async () => integration };
+function Fixture() {
+  const [config, setConfig] = React.useState(stored);
+  const [mouse, setMouse] = React.useState({ active: false, device_id: '', message: '' });
+  const [keyboard, setKeyboard] = React.useState({ active: false, device_id: '', message: '' });
+  const mouseApi = React.useMemo(() => ({ status: async () => mouse, start: async device_id => { const next = { active: true, device_id, message: '' }; setMouse(next); return next; }, pause: async () => { const next = { ...mouse, active: false }; setMouse(next); return next; } }), [mouse]);
+  const keyboardApi = React.useMemo(() => ({ status: async () => keyboard, start: async device_id => { const next = { active: true, device_id, message: '' }; setKeyboard(next); return next; }, pause: async () => { const next = { ...keyboard, active: false }; setKeyboard(next); return next; } }), [keyboard]);
+  const simulation = !mouse.active && !keyboard.active;
+  const daemon = { phase: 'connected', status: { protocol_version: 1, simulation, active_profile_id: 'arc', focus_state: 'focused', revision: '1', recent_profiles: [], history_available: true } };
+  return React.createElement(WorkspaceTabs, {
+    status: 'Prévia · dados demonstrativos',
+    home: (active, manageDevices) => React.createElement(HomePanel, { active, config, native: true, daemon, onConfigChange: setConfig, onSaved: () => {}, read, api, onManageDevices: manageDevices, inputApis: { mouse: mouseApi, keyboard: keyboardApi } }),
+    profiles: active => React.createElement(ProfilesPanel, { active, currentConfig: config, onConfigChange: setConfig, native: true, connected: true, onSaved: () => {}, api }),
+    devices: React.createElement(DevicesPanel, { config, onConfigChange: setConfig, api, native: true, connected: true, read }),
+    settings: active => React.createElement(React.Fragment, null,
+      React.createElement('div', { className: 'page-heading' }, React.createElement('span', { className: 'eyebrow' }, 'DO SEU JEITO'), React.createElement('h2', null, 'Configurações'), React.createElement('p', null, 'Inicialização, integração com o KDE e diagnóstico.')),
+      React.createElement(DaemonServicePanel, { native: true, active, connected: true, api: serviceApi }),
+      React.createElement(KwinIntegrationPanel, { native: true, active, daemonState: 'focused', api: integrationApi })),
+  });
+}
+createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode, null, React.createElement(Fixture)));
+</script></body></html>

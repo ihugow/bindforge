@@ -75,6 +75,8 @@ impl AppRule {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Profile {
     pub id: String,
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "Option::is_none"))]
+    pub icon: Option<String>,
     pub name: String,
     pub enabled: bool,
     pub priority: i32,
@@ -198,13 +200,13 @@ impl<R: InputRemapper> ProfileSwitcher<R> {
 /// Shared fixture for the daemon and UI. This is not persisted user configuration.
 pub fn demo_profiles() -> ProfileSet {
     ProfileSet::new(vec![
-        Profile { id: "default".into(), name: "Padrão".into(), enabled: true,
+        Profile { icon: None, id: "default".into(), name: "Padrão".into(), enabled: true,
             priority: 0, rules: vec![], bindings: vec![] },
-        Profile { id: "firefox".into(), name: "Firefox".into(), enabled: true,
+        Profile { icon: None, id: "firefox".into(), name: "Firefox".into(), enabled: true,
             priority: 10, rules: vec![AppRule { app_id: Some("firefox".into()), ..Default::default() }],
             bindings: vec![Binding { device_id: None, input: InputControl::MouseButton(8),
                 action: Action::KeyChord(vec!["Alt".into(), "Left".into()]) }] },
-        Profile { id: "konsole".into(), name: "Konsole".into(), enabled: true,
+        Profile { icon: None, id: "konsole".into(), name: "Konsole".into(), enabled: true,
             priority: 20, rules: vec![AppRule { app_id: Some("org.kde.konsole".into()), ..Default::default() }],
             bindings: vec![] },
     ], "default").expect("valid demo profiles")

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BindForge — teste dos ícones locais</title><body><main class="app-root" id="root"></main>
+<script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { ProfilesPanel } from '../src/profiles-panel.tsx';
+import { WorkspaceTabs } from '../src/workspace-tabs.tsx';
+import '../src/style.css';
+// In-memory configuration and window capture. Never uses native IPC or changes system profiles.
+function sample(color, letter) {
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 96;
+  const ctx = canvas.getContext('2d'); ctx.fillStyle = color; ctx.fillRect(0, 0, 96, 96);
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 56px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(letter, 48, 68);
+  return canvas.toDataURL('image/png');
+}
+const demoIcons = [
+  { app_id: 'org.kde.konsole', name: 'Konsole', icon: sample('#283952', '>') },
+  { app_id: 'steam:1808500', name: 'ARC Raiders', icon: sample('#734a98', 'A') },
+];
+const icons = new URLSearchParams(location.search).has('installed')
+  ? await fetch('./profile-icons.local.json').then(r => r.json()) : demoIcons;
+let config = { version: 1, revision: 0, fallback_id: 'default', profiles: [
+  { id: 'default', name: 'Padrão', enabled: true, priority: 0, rules: [], bindings: [] },
+  ...[
+    ['multi', 'Trabalho e jogos', ['org.kde.konsole', 'steam:1808500'], null],
+    ['missing', 'Aplicativo sem ícone', ['app-not-installed'], null],
+    ['custom', 'Ícone personalizado', ['org.kde.konsole'], sample('#28785f', 'P')],
+  ].map(([id, name, apps, icon]) => ({ id, name, icon, enabled: true, priority: 10, bindings: [], rules: apps.map(app_id => ({ app_id, executable: null, title_contains: null })) })),
+] };
+const api = {
+  load: async () => structuredClone(config),
+  save: async (next, revision) => {
+    if (revision !== config.revision) throw new Error('Conflito de revisão.');
+    config = structuredClone({ ...next, revision: revision + 1 }); return structuredClone(config);
+  },
+};
+const findIcons = async ids => icons.filter(icon => ids.includes(icon.app_id));
+const captureStart = async receive => {
+  const timer = setTimeout(() => receive({ kind: 'captured', app_id: 'steam:1808500' }), 100);
+  return () => clearTimeout(timer);
+};
+function Fixture() {
+  const [currentConfig, setConfig] = React.useState(config);
+  return React.createElement(WorkspaceTabs, {
+    status: 'Teste local · dados demonstrativos', devices: null,
+    profiles: active => React.createElement(ProfilesPanel, { native: true, connected: true, active, currentConfig, onConfigChange: setConfig, onSaved: () => {}, api, findIcons, captureStart }),
+  });
+}
+createRoot(document.getElementById('root')).render(React.createElement(Fixture));
+</script></body></html>

@@ -1,0 +1,32 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BindForge — teste dos dropdowns</title><body><main id="root"></main>
+<script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { AppSelect } from '../src/app-select.tsx';
+import '../src/style.css';
+// Component fixture only: no native IPC, profile persistence or hardware access.
+function Fixture() {
+  const [value, setValue] = React.useState('');
+  const [disabled, setDisabled] = React.useState(false);
+  const [saved, setSaved] = React.useState('');
+  return React.createElement('section', null,
+    React.createElement('h1', null, 'Dropdowns do BindForge'),
+    React.createElement('label', { className: 'checkbox-label' },
+      React.createElement('input', { type: 'checkbox', checked: disabled, onChange: e => setDisabled(e.target.checked) }), 'Desabilitar campos'),
+    React.createElement('form', { onSubmit: e => { e.preventDefault(); setSaved(String(new FormData(e.currentTarget).get('application'))); } },
+      React.createElement('fieldset', { disabled, className: 'device-fields' },
+        React.createElement('label', { htmlFor: 'test-select' }, 'Aplicativo'),
+        React.createElement(AppSelect, { id: 'test-select', name: 'application', required: true, value, onValueChange: setValue },
+          React.createElement('option', { value: '' }, 'Selecione um aplicativo'),
+          React.createElement('optgroup', { label: 'Aplicativos' },
+            React.createElement('option', { value: 'firefox' }, 'Firefox'),
+            React.createElement('option', { value: 'konsole' }, 'Konsole'),
+            React.createElement('option', { value: 'unavailable', disabled: true }, 'Indisponível')),
+          React.createElement('optgroup', { label: 'Grupo desabilitado', disabled: true },
+            React.createElement('option', { value: 'disabled-group' }, 'Opção bloqueada'))),
+        React.createElement('button', { type: 'submit', style: { marginTop: 20 } }, 'Validar e salvar'))),
+    React.createElement('p', { role: 'status' }, `Valor atual: ${value || '(vazio)'} · Valor enviado: ${saved || '(nenhum)'}`));
+}
+createRoot(document.getElementById('root')).render(React.createElement(Fixture));
+</script></body></html>

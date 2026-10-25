@@ -1,3 +1,4 @@
+import { AppSelect } from "./app-select";
 import { useRef, useState } from "react";
 import { Modal } from "./modal";
 import { MouseArt } from "./device-art";
@@ -65,13 +66,13 @@ function ActionEditor({ name, scope, action, apply, close, restoreFocus }: {
   const [error, setError] = useState("");
   return <Modal title={name} onDismiss={close} compact restoreFocus={restoreFocus} initialFocus="#action-kind">
     <form onSubmit={event => { event.preventDefault(); try { apply(kind === "original" ? null : kind === "disabled" ? "Disabled" : kind === "mouse" ? { MouseButton: target } : keyChord(keys)); } catch (e) { setError(String(e)); } }}>
-      <label htmlFor="action-kind">Ação</label><select id="action-kind" className="app-select" value={kind} onChange={e => setKind(e.target.value)}>
+      <label htmlFor="action-kind">Ação</label><AppSelect id="action-kind" className="app-select" value={kind} onValueChange={value => setKind(value)}>
         <option value="original">{scope ? "Usar comportamento geral" : "Comportamento original"}</option><option value="chord">Tecla ou atalho de teclado</option><option value="mouse">Outro botão do mouse</option><option value="disabled">Desativar botão</option>
-      </select>
+      </AppSelect>
       {kind === "chord" && <><label htmlFor="action-keys">Tecla ou combinação</label><input id="action-keys" value={keys} required placeholder="V ou Ctrl + Shift + V" onChange={e => setKeys(e.target.value)} /><p className="hint">Separe as teclas com +. Exemplos: V, Ctrl + W, Alt + Left.</p></>}
-      {kind === "mouse" && <><label htmlFor="action-target">Botão de destino</label><select id="action-target" className="app-select" value={target} onChange={e => setTarget(Number(e.target.value))}>
+      {kind === "mouse" && <><label htmlFor="action-target">Botão de destino</label><AppSelect id="action-target" className="app-select" value={target} onValueChange={value => setTarget(Number(value))}>
         {!mouseButtons.some(b => b.code === target) && <option value={target}>Botão {target}</option>}{mouseButtons.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
-      </select></>}
+      </AppSelect></>}
       {kind === "original" && <p className="hint">{scope ? "Remove a personalização deste dispositivo. Uma ação geral, se existir, continua valendo." : "Remove o mapeamento e preserva a função original do botão."}</p>}
       {error && <p role="alert">{error}</p>}
       <div className="button-row modal-actions"><button type="button" onClick={close}>Cancelar</button><button type="submit">Aplicar ao rascunho</button></div>
