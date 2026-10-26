@@ -1,3 +1,4 @@
+import { bindingScope } from "./configured-devices";
 import { AppSelect } from "./app-select";
 import { useEffect, useState, type KeyboardEvent } from "react";
 import { Modal } from "./modal";
@@ -29,7 +30,7 @@ export function KeyboardEditor({ profile, revision, device, save, close, restore
   const layout = device.layout ?? "abnt2";
   const sections = keyboardSections(layout);
   const keys = sections.flatMap(section => section.keys);
-  const scope = device.interface_id;
+  const scope = bindingScope(device);
   const exact = keyboardBinding(bindings, scope, selected);
   const effective = keyboardBinding(bindings, scope, selected, true);
   const dirty = JSON.stringify(bindings) !== JSON.stringify(profile.bindings);

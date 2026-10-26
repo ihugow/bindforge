@@ -132,3 +132,32 @@ mod tests {
     }
 
 }
+
+/// Resolve a saved identity only when exactly one live interface matches it.
+/// Without a fingerprint, retain legacy connection-local behavior.
+pub fn resolve(id: &str, fingerprint: Option<&str>, kind: Kind) -> Result<String, String> {
+    let Some(fingerprint) = fingerprint else { return inspect(id, kind).map(|t| t.interface_id); };
+    let matches: Vec<_> = identities()?.into_iter().filter(|(_, k, f)| *k == kind && f == fingerprint).collect();
+    match matches.as_slice() {
+        [(id, _, _)] => Ok(id.clone()),
+        [] => Err("Conexão indisponível ou identificação ambígua. Revise as conexões do dispositivo.".into()),
+        _ => Err("Identificação ambígua. Revise as conexões do dispositivo.".into()),
+    }
+}
+
+/// One metadata-only snapshot for reconnect matching; ambiguous selectors are omitted.
+pub fn identities() -> Result<Vec<(String, Kind, String)>, String> {
+    let inventory = platform_linux::LinuxDeviceEnumerator.enumerate()?;
+    let mut candidates = Vec::new();
+    for device in inventory {
+        if matches!(device.connection, DeviceConnection::Virtual | DeviceConnection::Unknown) || device.name.starts_with("BindForge") { continue; }
+        let Some(node) = device.id.strip_prefix("linux:").and_then(|p| udev::Device::from_syspath(Path::new(p)).ok()) else { continue; };
+        let mut meta = metadata(&node);
+        if let Some(phys) = node.parent().and_then(|p| p.attribute_value("phys").map(|v| v.to_string_lossy().into_owned())) { meta.properties.insert("BINDFORGE_PHYS".into(), phys); }
+        for kind in [Kind::Mouse, Kind::Keyboard] {
+            if node.property_value(kind.flag()).and_then(|v| v.to_str()) != Some("1") { continue; }
+            if let Ok(selected) = selector(&meta, kind) { candidates.push((device.id.clone(), kind, selected.fingerprint())); }
+        }
+    }
+    Ok(candidates.iter().filter(|(_, kind, fingerprint)| candidates.iter().filter(|(_, k, f)| k == kind && f == fingerprint).count() == 1).cloned().collect())
+}

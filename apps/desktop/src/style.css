@@ -443,3 +443,23 @@ output span { display: block; } li { margin-block: 6px; } code { overflow-wrap: 
 .select-scroll-button { display: flex; align-items: center; justify-content: center; height: 24px; color: var(--accent-light); }
 .select-error { display: block; margin-top: 6px; color: var(--warning); font-size: .8rem; }
 @media (forced-colors: active) { .select-menu, .select-option[data-highlighted] { border-color: ButtonText; } .select-option[data-highlighted] { background: Highlight; color: HighlightText; } }
+
+.connection-editor { margin-top: 24px; padding: 18px; background: var(--canvas); border: 1px solid var(--border); border-radius: 14px; }
+.connection-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.connection-section-heading h3, .saved-connections h3 { margin: 0; font-size: .95rem; }
+.connection-section-heading button { padding: 8px 12px; font-size: .8rem; }
+.connection-editor-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.connection-link-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; }
+.connection-link-button span { font-size: 1.15rem; line-height: 1; }
+.saved-connections { margin-top: 24px; }
+.connection-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; }
+.connection-row[data-editing] { border-color: var(--accent-light); }
+.connection-info { flex: 1 1 200px; min-width: 0; }
+.connection-title { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.connection-title strong { font-size: .95rem; overflow-wrap: anywhere; }
+.connection-preferred { padding: 3px 8px; border-radius: 6px; background: #a578f51c; color: var(--accent-light); font-size: .7rem; }
+.connection-interface-name { display: block; margin-top: 6px; color: var(--text-muted); font-size: .8rem; line-height: 1.5; overflow-wrap: anywhere; }
+.connection-offline { display: block; margin-top: 4px; color: var(--text-muted); font-size: .75rem; }
+.connection-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.connection-actions button { padding: 8px 12px; font-size: .8rem; }
+@media (max-width: 480px) { .connection-editor { padding: 14px; } .connection-actions { width: 100%; } }

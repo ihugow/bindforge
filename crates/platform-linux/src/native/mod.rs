@@ -18,22 +18,22 @@ impl InputKind {
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DeviceRegistration { pub id: String, pub name: String, pub interface_id: String, pub kind: InputKind }
+pub struct DeviceRegistration { pub id: String, pub name: String, pub interface_id: String, pub binding_id: String, pub kind: InputKind }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NativeStatus { pub active: bool, pub device_id: String, pub message: String }
 #[derive(Default)]
-struct Slot { worker: Option<transport::Worker>, message: String }
+struct Slot { workers: Vec<transport::Worker>, selected: Option<String>, message: String }
 impl Slot {
     fn stop(&mut self, message: &str) {
-        if let Some(worker) = self.worker.take() { worker.stop(); }
+        for worker in self.workers.drain(..) { worker.stop(); }
+        self.selected = None;
         self.message = message.into();
     }
     fn status(&self) -> NativeStatus {
-        if let Some(worker) = &self.worker {
-            let mut status = worker.status();
-            if status.message.is_empty() { status.message = self.message.clone(); }
-            status
-        } else { NativeStatus { message: self.message.clone(), ..Default::default() } }
+        let capturing = self.workers.iter().any(|w| w.status().active);
+        let pending = self.selected.is_some();
+        NativeStatus { active: pending, device_id: self.selected.clone().unwrap_or_default(),
+            message: if pending && !capturing { "Aguardando uma conexão vinculada ao dispositivo.".into() } else { self.message.clone() } }
     }
 }
 /// Application policy checked before opening the physical device and while capturing.
@@ -109,19 +109,24 @@ impl InputSession {
         if !state.focus_valid { return Err("Aguarde a ponte KWin identificar uma janela ativa antes de ativar o dispositivo.".into()); }
         let index = kind.index();
         if state.slots[index].status().active { return Err(format!("Pause o {} atual antes de ativar outro.", kind.name())); }
-        let device = state.devices.iter().find(|d| d.id == id && d.kind == kind)
-            .ok_or_else(|| format!("Selecione um {} cadastrado e salvo no aplicativo.", kind.name()))?.clone();
-        if state.slots.iter().filter_map(|slot| slot.worker.as_ref()).any(|worker| worker.status().active && worker.interface_id() == device.interface_id) {
-            return Err("Esta interface composta já está sendo capturada. Pause o outro dispositivo antes de ativar este.".into());
+        if !state.devices.iter().any(|d| d.id == id && d.kind == kind) {
+            return Err(format!("Selecione um {} cadastrado, salvo e conectado no aplicativo.", kind.name()));
         }
-        let profile = state.profile.as_ref().ok_or("Aguarde a seleção inicial de perfil pelo daemon.")?;
-        let plan = kind.compile(profile, &device.interface_id)?;
-        if let Some(worker) = state.slots[index].worker.take() { worker.stop(); }
-        let guard = state.policy.as_ref().ok_or("Reinicie o daemon para habilitar a verificação de autorizações.")?(&device)?;
-        guard()?;
-        match transport::Worker::start(device, plan, guard) {
-            Ok(worker) => { state.slots[index].worker = Some(worker); state.slots[index].message.clear(); Ok(()) },
-            Err(error) => { state.slots[index].message = error.clone(); Err(error) },
+        state.slots[index].stop("");
+        state.slots[index].selected = Some(id.into());
+        if let Err(error) = reconcile(&mut state, kind) {
+            state.slots[index].stop(&error);
+            return Err(error);
+        }
+        Ok(())
+    }
+    /// A fresh metadata snapshot changes available transports without renewing user consent.
+    pub fn connections(&self, devices: Vec<DeviceRegistration>) {
+        let mut state = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        state.devices = devices;
+        if state.restriction.is_some() || !state.focus_valid { return; }
+        for kind in [InputKind::Mouse, InputKind::Keyboard] {
+            if let Err(error) = reconcile(&mut state, kind) { state.slots[kind.index()].stop(&error); }
         }
     }
     pub fn pause_for_error(&self, message: String) {
@@ -140,14 +145,52 @@ impl InputSession {
         state.stop(message);
     }
 }
+fn reconcile(state: &mut State, kind: InputKind) -> Result<(), String> {
+    reconcile_using(state, kind, transport::Worker::start)
+}
+fn reconcile_using(state: &mut State, kind: InputKind,
+    mut start: impl FnMut(DeviceRegistration, Plan, CaptureGuard) -> Result<transport::Worker, String>) -> Result<(), String> {
+    let index = kind.index();
+    let Some(id) = state.slots[index].selected.clone() else { return Ok(()); };
+    // Saved order is explicit priority: at most one transport emits input.
+    let devices: Vec<_> = state.devices.iter().filter(|d| d.id == id && d.kind == kind).take(1).cloned().collect();
+    let slot = &mut state.slots[index];
+    // Errors other than physical removal (revocation, emergency, lost events) cancel intent.
+    for worker in &slot.workers {
+        let status = worker.status();
+        if !status.active && !worker.disconnected() { return Err(status.message); }
+    }
+    let mut kept = Vec::new();
+    for worker in slot.workers.drain(..) {
+        if worker.status().active && devices.iter().any(|d| d.interface_id == worker.interface_id()) { kept.push(worker); }
+        else { worker.stop(); }
+    }
+    slot.workers = kept;
+    for device in devices {
+        if state.slots[index].workers.iter().any(|w| w.interface_id() == device.interface_id) { continue; }
+        if state.slots.iter().flat_map(|slot| &slot.workers).any(|w| w.status().active && w.interface_id() == device.interface_id) {
+            return Err("Esta interface composta já está sendo capturada. Pause o outro dispositivo antes de ativar este.".into());
+        }
+        let profile = state.profile.as_ref().ok_or("Aguarde a seleção inicial de perfil pelo daemon.")?;
+        let plan = kind.compile(profile, &device.binding_id)?;
+        let guard = state.policy.as_ref().ok_or("Reinicie o daemon para habilitar a verificação de autorizações.")?(&device)?;
+        guard()?;
+        let device_name = device.name.clone();
+        match start(device, plan, guard) {
+            Ok(worker) => { state.slots[index].workers.push(worker); state.slots[index].message = format!("Conexão ativa: {}", device_name); }
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
 impl InputRemapper for InputSession {
     fn mode(&self) -> RemapMode { if self.statuses().iter().any(|s| s.active) { RemapMode::Native } else { RemapMode::Simulation } }
     fn apply_profile(&mut self, profile: &Profile) -> Result<(), String> {
         let mut state = self.0.lock().map_err(|e| e.to_string())?;
         // Compile every active map before changing either worker.
-        let plans = [InputKind::Mouse, InputKind::Keyboard].into_iter().map(|kind| {
-            state.slots[kind.index()].worker.as_ref().filter(|worker| worker.status().active)
-                .map(|worker| kind.compile(profile, worker.interface_id())).transpose()
+        let plans = [InputKind::Mouse, InputKind::Keyboard].into_iter().enumerate().flat_map(|(index, kind)| {
+            state.slots[index].workers.iter().enumerate().filter(|(_, w)| w.status().active)
+                .map(move |(worker, w)| kind.compile(profile, w.binding_id()).map(|plan| (index, worker, plan)))
         }).collect::<Result<Vec<_>, _>>();
         let plans = match plans {
             Ok(plans) => plans,
@@ -156,11 +199,9 @@ impl InputRemapper for InputSession {
                 return Err(error);
             }
         };
-        for (index, plan) in plans.into_iter().enumerate() {
-            if let Some(plan) = plan {
-                if let Err(error) = state.slots[index].worker.as_ref().expect("compiled worker").apply(plan) {
-                    state.stop(&format!("Remapeamento pausado ao aplicar perfil: {error}")); return Err(error);
-                }
+        for (index, worker, plan) in plans {
+            if let Err(error) = state.slots[index].workers[worker].apply(plan) {
+                state.stop(&format!("Remapeamento pausado ao aplicar perfil: {error}")); return Err(error);
             }
         }
         state.profile = Some(profile.clone());
@@ -220,7 +261,7 @@ mod tests {
     fn keyboard_activation_cannot_bypass_focus_restriction_or_registration_kind() {
         let mut session = InputSession::default();
         session.apply_profile(&remap_core::demo_profiles().profiles()[0]).unwrap();
-        session.devices(vec![DeviceRegistration { id: "mouse".into(), name: "Mouse".into(), interface_id: "not-a-path".into(), kind: InputKind::Mouse }]);
+        session.devices(vec![DeviceRegistration { id: "mouse".into(), name: "Mouse".into(), interface_id: "not-a-path".into(), binding_id: "not-a-path".into(), kind: InputKind::Mouse }]);
         session.focus(true);
         assert!(session.start_keyboard("mouse").unwrap_err().contains("teclado cadastrado"));
         for reason in [SessionRestriction::Locked, SessionRestriction::Sleeping, SessionRestriction::Unavailable, SessionRestriction::Inactive] {
@@ -235,9 +276,9 @@ mod tests {
         let session = InputSession::default();
         let applied_mouse = Arc::new(Mutex::new(vec![])); let applied_keyboard = Arc::new(Mutex::new(vec![]));
         for (kind, applied, fail) in [(InputKind::Mouse, applied_mouse.clone(), false), (InputKind::Keyboard, applied_keyboard.clone(), fail_keyboard)] {
-            let device = DeviceRegistration { id: kind.name().into(), name: kind.name().into(), interface_id: kind.name().into(), kind };
+            let device = DeviceRegistration { id: kind.name().into(), name: kind.name().into(), interface_id: kind.name().into(), binding_id: kind.name().into(), kind };
             let worker = transport::Worker::fixture(device.clone(), applied, fail);
-            let mut state = session.0.lock().unwrap(); state.devices.push(device); state.slots[kind.index()].worker = Some(worker); state.focus_valid = true;
+            let mut state = session.0.lock().unwrap(); state.devices.push(device); state.slots[kind.index()].workers.push(worker); state.slots[kind.index()].selected = Some(kind.name().into()); state.focus_valid = true;
         }
         (session, applied_mouse, applied_keyboard)
     }
@@ -276,13 +317,101 @@ mod tests {
     fn activation_obeys_explicit_denial_before_any_device_open_for_both_kinds() {
         let session = InputSession::with_access_policy(Arc::new(|_| Err("Acesso revogado".into())));
         session.devices([InputKind::Mouse, InputKind::Keyboard].into_iter().map(|kind| DeviceRegistration {
-            id: kind.name().into(), name: kind.name().into(), interface_id: "/never/open/this".into(), kind,
+            id: kind.name().into(), name: kind.name().into(), interface_id: "/never/open/this".into(), binding_id: "/never/open/this".into(), kind,
         }).collect());
         session.0.lock().unwrap().profile = Some(remap_core::demo_profiles().profiles()[0].clone());
         session.focus(true);
         assert_eq!(session.start("mouse").unwrap_err(), "Acesso revogado");
         assert_eq!(session.start_keyboard("teclado").unwrap_err(), "Acesso revogado");
         assert!(session.statuses().iter().all(|s| !s.active));
+    }
+
+    #[test]
+    fn preferred_cable_takes_over_receiver_and_unplug_falls_back_without_losing_scope() {
+        let mut state = State { focus_valid: true,
+            profile: Some(remap_core::demo_profiles().profiles()[0].clone()),
+            policy: Some(Arc::new(|_| Ok(Arc::new(|| Ok(()))))), ..Default::default() };
+        let receiver = DeviceRegistration { id: "mouse".into(), name: "Receptor".into(), interface_id: "receiver".into(), binding_id: "device:mouse".into(), kind: InputKind::Mouse };
+        let cable = DeviceRegistration { name: "Cabo".into(), interface_id: "cable".into(), ..receiver.clone() };
+        let applied = Arc::new(Mutex::new(vec![]));
+        let mut opened = Vec::new();
+        let mut factory = |device: DeviceRegistration, _: Plan, _: CaptureGuard| {
+            opened.push(device.interface_id.clone());
+            Ok(transport::Worker::fixture(device, applied.clone(), false))
+        };
+        state.slots[0].selected = Some("mouse".into());
+        state.devices = vec![receiver.clone()];
+        reconcile_using(&mut state, InputKind::Mouse, &mut factory).unwrap();
+        assert_eq!(state.slots[0].workers[0].interface_id(), "receiver");
+        state.devices = vec![cable.clone(), receiver.clone()];
+        reconcile_using(&mut state, InputKind::Mouse, &mut factory).unwrap();
+        assert_eq!(state.slots[0].workers.len(), 1);
+        assert_eq!(state.slots[0].workers[0].interface_id(), "cable");
+        assert_eq!(state.slots[0].workers[0].binding_id(), "device:mouse");
+        state.devices = vec![receiver.clone()];
+        reconcile_using(&mut state, InputKind::Mouse, &mut factory).unwrap();
+        assert_eq!(state.slots[0].workers[0].interface_id(), "receiver");
+        state.devices.clear();
+        reconcile_using(&mut state, InputKind::Mouse, &mut factory).unwrap();
+        assert!(state.slots[0].workers.is_empty());
+        assert!(state.slots[0].status().active);
+        assert!(state.slots[0].status().message.contains("Aguardando"));
+        state.devices = vec![DeviceRegistration { interface_id: "new-path".into(), ..receiver }];
+        reconcile_using(&mut state, InputKind::Mouse, &mut factory).unwrap();
+        assert_eq!(state.slots[0].workers[0].interface_id(), "new-path");
+        state.stop("Pausado");
+        reconcile_using(&mut state, InputKind::Mouse, &mut factory).unwrap();
+        assert!(state.slots[0].workers.is_empty());
+        assert_eq!(opened, ["receiver", "cable", "receiver", "new-path"]);
+    }
+
+    #[test]
+    fn reconnect_never_resumes_after_pause_restriction_or_revocation() {
+        let (session, _, _) = populated_session(false);
+        let devices = session.0.lock().unwrap().devices.clone();
+        session.pause_mouse();
+        session.connections(devices.clone());
+        assert!(!session.status().active);
+        session.restrict_session(Some(SessionRestriction::Locked));
+        session.connections(devices.clone());
+        session.restrict_session(None); session.focus(true);
+        session.connections(devices);
+        assert!(session.statuses().iter().all(|s| !s.active));
+        let mut state = State { policy: Some(Arc::new(|_| Err("Acesso revogado".into()))),
+            profile: Some(remap_core::demo_profiles().profiles()[0].clone()), ..Default::default() };
+        state.slots[0].selected = Some("mouse".into());
+        state.devices.push(DeviceRegistration { id: "mouse".into(), name: "Cabo".into(), interface_id: "never-open".into(), binding_id: "device:mouse".into(), kind: InputKind::Mouse });
+        let error = reconcile_using(&mut state, InputKind::Mouse, |_, _, _| panic!("must not open revoked input")).unwrap_err();
+        assert_eq!(error, "Acesso revogado");
+    }
+
+    #[test]
+    fn only_physical_disconnect_is_retryable_and_profiles_use_the_logical_scope() {
+        let (session, _, _) = populated_session(false);
+        {
+            let mut state = session.0.lock().unwrap();
+            state.profile = Some(remap_core::demo_profiles().profiles()[0].clone());
+            state.slots[0].workers[0].fail_for_test("Emergency or revoked", false);
+        }
+        let devices = session.0.lock().unwrap().devices.clone();
+        session.connections(devices);
+        assert!(!session.status().active);
+        assert_eq!(session.status().message, "Emergency or revoked");
+        let mut profile = remap_core::demo_profiles().profiles()[0].clone();
+        profile.bindings.push(remap_core::Binding { device_id: Some("device:mouse".into()),
+            input: remap_core::InputControl::MouseButton(8), action: remap_core::Action::Disabled });
+        let device = DeviceRegistration { id: "mouse".into(), name: "Mouse".into(), interface_id: "old-path".into(), binding_id: "device:mouse".into(), kind: InputKind::Mouse };
+        let worker = transport::Worker::fixture(device.clone(), Arc::new(Mutex::new(vec![])), false);
+        worker.fail_for_test("Removed", true);
+        let mut state = State { profile: Some(profile.clone()), policy: Some(Arc::new(|_| Ok(Arc::new(|| Ok(()))))), ..Default::default() };
+        state.slots[0].selected = Some("mouse".into()); state.slots[0].workers.push(worker);
+        state.devices.push(DeviceRegistration { interface_id: "new-path".into(), ..device });
+        let expected = Plan::compile(&profile, "device:mouse").unwrap();
+        reconcile_using(&mut state, InputKind::Mouse, |device, plan, _| {
+            assert_eq!(plan, expected);
+            Ok(transport::Worker::fixture(device, Arc::new(Mutex::new(vec![])), false))
+        }).unwrap();
+        assert_eq!(state.slots[0].workers[0].interface_id(), "new-path");
     }
 
 }

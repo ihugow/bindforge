@@ -251,8 +251,8 @@ de remapeamento em Início. Salvar perfis e instalar o RPM não ativam a captura
 criadas pelo gerenciador, bloqueando novas ativações até uma nova concessão.
 Esse bloqueio vale mesmo com ACL residual ou permissão externa. Reconectar o
 dispositivo encerra acessos residuais do sistema; permissões externas podem permanecer. Sem série individual, a regra fica vinculada
-à porta/interface, conforme indicado na tela. Atualize o vínculo do cadastro se a
-interface mudar após reconexão. O fluxo exige o helper e a política incluídos no RPM.
+à porta/interface, conforme indicado na tela. Autorize cada conexão vinculada ao
+cadastro. Sem série individual, trocar de porta pode exigir um novo vínculo. O fluxo exige o helper e a política incluídos no RPM.
 Veja [arquitetura, instalação e limites](docs/device-access.md).
 
 ## Remapeamento experimental do teclado
@@ -459,11 +459,19 @@ A lista representa **interfaces**, não necessariamente periféricos físicos di
 um receptor pode oferecer teclado e mouse separados. Interfaces compostas aparecem
 como “Mouse e teclado”. Entradas de software conhecidas aparecem como “Virtual”.
 
-Após conectar/desconectar um periférico, clique em **Atualizar lista**. Esta etapa
-não oferece atualização automática por hotplug nem captura de eventos. A lista
-consulta somente metadados. O vínculo pode precisar ser refeito após reconectar ou
-reiniciar: edite o dispositivo e selecione a nova interface. Ações específicas são
-transferidas entre interfaces, recusando conflitos no destino.
+Em **Editar dispositivo**, vincule receptor, cabo e Bluetooth como conexões do
+mesmo cadastro. Cada conexão recebe um nome; **Priorizar** determina qual será
+usada quando várias estiverem presentes. Priorize o cabo para usá-lo com o
+receptor ainda conectado. As ações são compartilhadas e preservadas em todos os
+perfis, inclusive na migração de cadastros antigos.
+
+Após ativação explícita, o daemon acompanha as conexões automaticamente e troca
+para a primeira disponível. Se todas desconectarem, aguarda uma conexão vinculada.
+Pausa manual, bloqueio, suspensão e falhas de captura exigem nova ativação.
+O reconhecimento usa série/endereço físico quando disponível; sem identificação
+individual, pode depender da porta. A lista técnica consulta somente metadados e
+pode ser renovada por **Atualizar lista** ou **Atualizar interfaces** no cadastro.
+Veja [conexões do mesmo dispositivo](docs/devices.md#conexões-do-mesmo-dispositivo).
 
 Também é possível testar sem interface ou KDE:
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { withDevice } from './configured-devices.ts';
+import { withDevice, bindingScope, connectedInterface } from './configured-devices.ts';
 import { mouseControls } from './mouse-bindings.ts';
 const mouse = { id: 'custom', name: ' G PRO ', kind: 'mouse', interface_id: 'usb-a', button_count: 5, layout: null };
 const detected = [{ id: 'usb-a', kind: 'mouse' }, { id: 'usb-b', kind: 'composite' }, { id: 'keyboard', kind: 'keyboard' }];
@@ -23,7 +23,7 @@ test('relink moves only matching input kind, retains offline configuration and r
   const k = { device_id: 'usb-a', input: { Key: 'A' }, action: 'Disabled' };
   const base = { ...config, devices: [mouse], profiles: [{ ...config.profiles[0], bindings: [m, k] }] };
   const moved = withDevice(base, { ...mouse, interface_id: 'usb-b' }, detected);
-  assert.deepEqual(moved.profiles[0].bindings, [{ ...m, device_id: 'usb-b' }, k]);
+  assert.deepEqual(moved.profiles[0].bindings, [{ ...m, device_id: 'device:custom' }, k]);
   assert.equal(withDevice(base, { ...mouse, name: 'Offline' }, []).devices[0].name, 'Offline');
   const collision = { ...base, profiles: [{ ...base.profiles[0], bindings: [m, { ...m, device_id: 'usb-b' }] }] };
   assert.throws(() => withDevice(collision, { ...mouse, interface_id: 'usb-b' }, detected), /já possui ações/);
@@ -34,4 +34,21 @@ test('mouse control count preserves established symbolic IDs and generates uniqu
   assert.equal(mouseControls(3).length, 3);
   assert.equal(mouseControls(32).length, 32);
   assert.equal(new Set(mouseControls(32).map(b => b.code)).size, 32);
+});
+
+test('receiver and cable share actions across reconnects and removal without copying bindings', () => {
+  const m = { device_id: 'usb-a', input: { MouseButton: 8 }, action: 'Disabled' };
+  const old = { ...config, devices: [mouse], profiles: [{ ...config.profiles[0], bindings: [m] }] };
+  const connections = [{ interface_id: 'usb-b', name: 'Cabo', fingerprint: 'cable' }, { interface_id: 'usb-a', name: 'Receptor', fingerprint: 'receiver' }];
+  const next = withDevice(old, { ...mouse, connections }, detected);
+  const device = next.devices[0];
+  assert.equal(bindingScope(device), 'device:custom');
+  assert.equal(next.profiles[0].bindings[0].device_id, bindingScope(device));
+  assert.equal(connectedInterface(device, [{ id: 'new-path', kind: 'mouse', mouse_fingerprint: 'cable' }]).id, 'new-path');
+  assert.equal(connectedInterface(device, [{ id: 'usb-b', kind: 'mouse', mouse_fingerprint: 'other' }]), undefined);
+  assert.equal(connectedInterface(device, [{ id: 'one', kind: 'mouse', mouse_fingerprint: 'cable' }, { id: 'two', kind: 'mouse', mouse_fingerprint: 'cable' }]), undefined);
+  const unplugged = withDevice(next, { ...device, connections: [connections[1]] }, []);
+  assert.deepEqual(unplugged.profiles, next.profiles);
+  assert.throws(() => withDevice(next, { ...device, id: 'another' }, detected), /associada/);
+  assert.throws(() => withDevice(next, { ...device, connections: [connections[0], connections[0]] }, detected), /distintas/);
 });

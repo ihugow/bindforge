@@ -3,6 +3,8 @@ export type DetectedDevice = {
   name: string;
   kind: "mouse" | "keyboard" | "composite";
   connection: "usb" | "bluetooth" | "internal" | "virtual" | "unknown";
+  mouse_fingerprint?: string | null;
+  keyboard_fingerprint?: string | null;
   vendor_id: number | null;
   product_id: number | null;
   battery?: { percentage: number; state: "charging" | "discharging" | "full" | "unknown" } | null;

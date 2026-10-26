@@ -1,3 +1,4 @@
+import { bindingScope } from "./configured-devices";
 import { AppSelect } from "./app-select";
 import { useEffect, useState } from "react";
 import { MouseArt } from "./device-art";
@@ -11,7 +12,7 @@ export function MouseWorkspace({ profile, revision, device, save, onDirtyChange 
   save: (profile: Profile, revision: number) => Promise<Config>;
   onDirtyChange: (dirty: boolean, busy: boolean) => void;
 }) {
-  const controls = mouseControls(device?.button_count ?? 5), scope = device?.interface_id ?? null;
+  const controls = mouseControls(device?.button_count ?? 5), scope = device ? bindingScope(device) : null;
   const [selected, setSelected] = useState(() => controls.find(c => c.code === 8)?.code ?? controls[0].code);
   const [drafts, setDrafts] = useState<Record<number, MouseActionDraft>>({});
   const [busy, setBusy] = useState(false), [error, setError] = useState("");

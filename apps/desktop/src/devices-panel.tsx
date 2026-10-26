@@ -1,3 +1,4 @@
+import { connectedInterface } from "./configured-devices";
 import { useEffect, useState } from "react";
 import { DeviceBattery } from "./device-battery";
 import { DeviceForm } from "./device-form";
@@ -36,7 +37,7 @@ export function DevicesPanel({ native, connected, read, config, onConfigChange, 
       {(config?.devices ?? []).map(d => <button type="button" className="device-card" key={d.id} onClick={() => setEditing(d)}>
         <span className="device-card-art">{d.kind === "mouse" ? <MouseArt /> : <KeyboardArt />}</span><span className="device-card-name">{d.name}</span>
         <span className="device-card-caption">{d.kind === "mouse" ? `Mouse · ${d.button_count} botões` : `Teclado · ${layouts[d.layout!]}`}</span>
-        <span className="device-card-caption">{!connected || inventory.phase !== "ready" ? "Conexão não verificada" : inventory.devices.some(i => i.id === d.interface_id) ? "Interface conectada" : "Interface indisponível"}</span><DeviceBattery device={inventory.phase === "ready" ? inventory.devices.find(i => i.id === d.interface_id) : undefined} /><span className="device-card-link">Editar dispositivo ↗</span>
+        <span className="device-card-caption">{!connected || inventory.phase !== "ready" ? "Conexão não verificada" : !!connectedInterface(d, inventory.devices) ? "Interface conectada" : "Interface indisponível"}</span><DeviceBattery device={inventory.phase === "ready" ? connectedInterface(d, inventory.devices) : undefined} /><span className="device-card-link">Editar dispositivo ↗</span>
       </button>)}
     </div>
     {config && !(config.devices?.length) && <p className="hint">Comece pelo + para adicionar seu primeiro dispositivo.</p>}
@@ -64,8 +65,8 @@ export function DevicesPanel({ native, connected, read, config, onConfigChange, 
       </>}
     </details>
     <p className="hint">Após conectar ou desconectar um dispositivo, clique em “Atualizar lista”. Um periférico pode aparecer em mais de uma interface; entradas virtuais são indicadas como “Virtual”.</p>
-    {editing && config && <DeviceForm device={editing === "new" ? undefined : editing} inventory={inventory.phase === "ready" ? inventory.devices : []} close={() => setEditing(null)} save={async device => {
-      const saved = await api.save(withDevice(config, device, inventory.phase === "ready" ? inventory.devices : []), config.revision);
+    {editing && config && <DeviceForm refreshInventory={read} device={editing === "new" ? undefined : editing} inventory={inventory.phase === "ready" ? inventory.devices : []} close={() => setEditing(null)} save={async (device, snapshot) => {
+      const saved = await api.save(withDevice(config, device, snapshot ?? (inventory.phase === "ready" ? inventory.devices : [])), config.revision);
       onConfigChange?.(saved); setMessage(`Dispositivo “${device.name.trim()}” salvo.`);
     }} />}
   </section>;

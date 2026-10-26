@@ -21,8 +21,26 @@ pub struct ConfiguredDevice {
     pub name: String,
     pub kind: String,
     pub interface_id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub connections: Vec<Connection>,
     pub button_count: Option<u8>,
     pub layout: Option<String>,
+}
+/// Explicitly associated transport, with an optional persistent udev identity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Connection {
+    pub interface_id: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interface_name: Option<String>,
+    #[serde(default)]
+    pub fingerprint: Option<String>,
+}
+impl ConfiguredDevice {
+    pub fn binding_id(&self) -> String {
+        if self.connections.is_empty() { self.interface_id.clone() } else { format!("device:{}", self.id) }
+    }
 }
 impl Default for Config {
     fn default() -> Self {
@@ -39,11 +57,23 @@ impl Config {
         if self.devices.len() > 64 { return Err("Use no máximo 64 dispositivos configurados.".into()); }
         let mut ids = std::collections::HashSet::new();
         let mut interfaces = std::collections::HashSet::new();
+        let mut fingerprints = std::collections::HashSet::new();
         for d in &self.devices {
             if !text(&d.id, 128) || !text(&d.name, 128) || !text(&d.interface_id, 4096)
                 || !ids.insert(&d.id) || !interfaces.insert((&d.interface_id, &d.kind)) {
                 return Err("Nome, ID ou interface do dispositivo inválido ou duplicado.".into());
             }
+            if d.connections.len() > 8 { return Err("Use no máximo oito conexões por dispositivo.".into()); }
+            let mut local = std::collections::HashSet::new();
+            for c in &d.connections {
+                if c.fingerprint.as_ref().is_some_and(|f| !fingerprints.insert((f, &d.kind))) { return Err("Esta conexão já pertence a um dispositivo.".into()); }
+                if !text(&c.interface_id, 4096) || !text(&c.name, 128) || c.interface_name.as_ref().is_some_and(|name| !text(name, 1024)) || !local.insert(&c.interface_id)
+                    || (c.interface_id != d.interface_id && !interfaces.insert((&c.interface_id, &d.kind)))
+                    || c.fingerprint.as_ref().is_some_and(|f| f.len() != 64 || !f.bytes().all(|b| b.is_ascii_hexdigit())) {
+                    return Err("Conexão inválida ou já associada a outro dispositivo.".into());
+                }
+            }
+            if !d.connections.is_empty() && !local.contains(&d.interface_id) { return Err("A interface principal precisa pertencer às conexões.".into()); }
             let valid = match d.kind.as_str() {
                 "mouse" => d.button_count.is_some_and(|n| (3..=32).contains(&n)) && d.layout.is_none(),
                 "keyboard" => d.button_count.is_none() && d.layout.as_ref().is_some_and(|l| ["abnt2", "ansi", "iso"].contains(&l.as_str())),
@@ -211,7 +241,7 @@ mod tests {
         let mut legacy = serde_json::to_value(&config).unwrap();
         legacy.as_object_mut().unwrap().remove("devices");
         assert!(serde_json::from_value::<Config>(legacy).unwrap().devices.is_empty());
-        config.devices.push(ConfiguredDevice { id: "mouse-a".into(), name: "G PRO".into(), kind: "mouse".into(), interface_id: "interface-a".into(), button_count: Some(5), layout: None });
+        config.devices.push(ConfiguredDevice { id: "mouse-a".into(), name: "G PRO".into(), kind: "mouse".into(), interface_id: "interface-a".into(), connections: vec![], button_count: Some(5), layout: None });
         let path = path();
         let saved = save(&path, config.clone(), 0).unwrap();
         assert_eq!(load(&path).unwrap(), saved);
@@ -257,4 +287,32 @@ mod tests {
         assert_eq!(load(&path).unwrap(), saved);
         fs::remove_dir_all(path.parent().unwrap()).unwrap();
     }
+    #[test]
+    fn multi_connection_identity_roundtrips_and_rejects_ambiguous_ownership() {
+        let mut config = Config::default();
+        let fingerprint = "a".repeat(64);
+        config.devices.push(ConfiguredDevice { id: "mouse".into(), name: "Mouse".into(), kind: "mouse".into(),
+            interface_id: "cable".into(), connections: vec![
+                Connection { interface_id: "cable".into(), name: "Cabo".into(), interface_name: Some("Mouse USB de exemplo".into()), fingerprint: Some(fingerprint.clone()) },
+                Connection { interface_id: "receiver".into(), name: "Receptor".into(), interface_name: None, fingerprint: None },
+            ], button_count: Some(5), layout: None });
+        assert_eq!(config.devices[0].binding_id(), "device:mouse");
+        let path = path();
+        let saved = save(&path, config.clone(), 0).unwrap();
+        assert_eq!(load(&path).unwrap(), saved);
+        let mut second = config.devices[0].clone();
+        second.id = "second".into(); second.interface_id = "other".into();
+        second.connections = vec![Connection { interface_id: "other".into(), name: "Outra".into(), interface_name: None, fingerprint: Some(fingerprint) }];
+        config.devices.push(second);
+        assert!(config.validate().is_err());
+        config.devices.pop();
+        let duplicate = config.devices[0].connections[0].clone();
+        config.devices[0].connections.push(duplicate);
+        assert!(config.validate().is_err());
+        config.devices[0].connections.pop();
+        config.devices[0].interface_id = "not-linked".into();
+        assert!(config.validate().is_err());
+        fs::remove_dir_all(path.parent().unwrap()).unwrap();
+    }
+
 }

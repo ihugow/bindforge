@@ -32,20 +32,20 @@ mod application_icon_types {
 }
 
 #[tauri::command]
-async fn get_device_access(device_id: String, window: tauri::WebviewWindow) -> Result<access_types::Status, String> {
+async fn get_device_access(device_id: String, connection_id: Option<String>, window: tauri::WebviewWindow) -> Result<access_types::Status, String> {
     if window.label() != "main" { return Err("Unsupported window".into()); }
     #[cfg(target_os = "linux")]
-    { tauri::async_runtime::spawn_blocking(move || device_access::status(&device_id)).await.map_err(|e| e.to_string())? }
+    { tauri::async_runtime::spawn_blocking(move || device_access::status(&device_id, connection_id.as_deref())).await.map_err(|e| e.to_string())? }
     #[cfg(not(target_os = "linux"))]
-    { let _ = device_id; Err("Gerenciamento de acesso disponível apenas no Linux.".into()) }
+    { let _ = (device_id, connection_id); Err("Gerenciamento de acesso disponível apenas no Linux.".into()) }
 }
 #[tauri::command]
-async fn configure_device_access(device_id: String, action: access_types::Action, fingerprint: String, window: tauri::WebviewWindow) -> Result<access_types::Result, String> {
+async fn configure_device_access(device_id: String, action: access_types::Action, fingerprint: String, connection_id: Option<String>, window: tauri::WebviewWindow) -> Result<access_types::Result, String> {
     if window.label() != "main" { return Err("Unsupported window".into()); }
     #[cfg(target_os = "linux")]
-    { tauri::async_runtime::spawn_blocking(move || device_access::control(&device_id, action, &fingerprint)).await.map_err(|e| e.to_string())? }
+    { tauri::async_runtime::spawn_blocking(move || device_access::control(&device_id, connection_id.as_deref(), action, &fingerprint)).await.map_err(|e| e.to_string())? }
     #[cfg(not(target_os = "linux"))]
-    { let _ = (device_id, action, fingerprint); Err("Gerenciamento de acesso disponível apenas no Linux.".into()) }
+    { let _ = (device_id, connection_id, action, fingerprint); Err("Gerenciamento de acesso disponível apenas no Linux.".into()) }
 }
 mod access_types {
     #[cfg(target_os = "linux")]
@@ -188,7 +188,11 @@ async fn load_profiles() -> Result<remap_config::Config, String> {
 
 #[tauri::command]
 async fn save_profiles(config: remap_config::Config, expected_revision: u32) -> Result<remap_config::Config, String> {
-    tauri::async_runtime::spawn_blocking(move || remap_config::save(&remap_config::config_path()?, config, expected_revision))
+    tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(target_os = "linux")]
+        let config = device_access::prepare_connections(config)?;
+        remap_config::save(&remap_config::config_path()?, config, expected_revision)
+    })
         .await.map_err(|e| e.to_string())?
 }
 
@@ -240,6 +244,7 @@ struct DetectedDevice {
     id: String, name: String, kind: String, connection: String,
     vendor_id: Option<u16>, product_id: Option<u16>,
     battery: Option<DeviceBattery>,
+    mouse_fingerprint: Option<String>, keyboard_fingerprint: Option<String>,
 }
 #[tauri::command]
 async fn list_devices() -> Result<Vec<DetectedDevice>, String> {
@@ -253,9 +258,12 @@ async fn list_devices() -> Result<Vec<DetectedDevice>, String> {
             })?;
         let batteries = tauri::async_runtime::spawn_blocking(remap_ipc::dbus::read_session_batteries)
             .await.ok().and_then(Result::ok).unwrap_or_default();
+        let identities = tauri::async_runtime::spawn_blocking(bindforge_access::identities).await.map_err(|e| e.to_string())??;
         Ok(devices.into_iter().map(|device| DetectedDevice {
             battery: batteries.iter().find(|(id, _, _)| id == &device.id)
                 .map(|(_, percentage, state)| DeviceBattery { percentage: *percentage, state: state.clone() }),
+            mouse_fingerprint: identities.iter().find(|(id, k, _)| id == &device.id && *k == bindforge_access::Kind::Mouse).map(|(_, _, f)| f.clone()),
+            keyboard_fingerprint: identities.iter().find(|(id, k, _)| id == &device.id && *k == bindforge_access::Kind::Keyboard).map(|(_, _, f)| f.clone()),
             id: device.id, name: device.name,
             kind: match device.kind { remap_core::DeviceKind::Mouse => "mouse", remap_core::DeviceKind::Keyboard => "keyboard", remap_core::DeviceKind::Composite => "composite" }.into(),
             connection: match device.connection { remap_core::DeviceConnection::Usb => "usb", remap_core::DeviceConnection::Bluetooth => "bluetooth",

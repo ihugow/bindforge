@@ -79,11 +79,32 @@ fn run_kde(once: bool) -> Result<(), String> {
         Ok(std::sync::Arc::new(move || bindforge_access::ensure_not_revoked(&target)))
     }));
     let _session_guard = platform_linux::native::session::SessionGuard::system(input.clone())?;
-    let registrations = |config: &remap_config::Config| config.devices.iter().map(|d| platform_linux::native::DeviceRegistration {
-        id: d.id.clone(), name: d.name.clone(), interface_id: d.interface_id.clone(),
-        kind: if d.kind == "keyboard" { platform_linux::native::InputKind::Keyboard } else { platform_linux::native::InputKind::Mouse },
-    }).collect();
-    input.devices(registrations(&config));
+    let registrations = |config: &remap_config::Config| -> Result<Vec<platform_linux::native::DeviceRegistration>, String> {
+        use remap_core::DeviceEnumerator;
+        let inventory = platform_linux::LinuxDeviceEnumerator.enumerate()?;
+        let identities = bindforge_access::identities()?;
+        let mut result = Vec::new();
+        for d in &config.devices {
+            let access_kind = bindforge_access::Kind::parse(&d.kind)?;
+            let connections = if d.connections.is_empty() {
+                vec![remap_config::Connection { interface_id: d.interface_id.clone(), name: "Principal".into(), interface_name: None, fingerprint: None }]
+            } else { d.connections.clone() };
+            for c in connections {
+                let id = if let Some(fingerprint) = c.fingerprint {
+                    identities.iter().find(|(_, k, f)| *k == access_kind && f == &fingerprint).map(|(id, _, _)| id.clone())
+                } else { inventory.iter().find(|i| i.id == c.interface_id).map(|i| i.id.clone()) };
+                if let Some(interface_id) = id {
+                    result.push(platform_linux::native::DeviceRegistration {
+                        id: d.id.clone(), name: format!("{} · {}", d.name, c.name), interface_id, binding_id: d.binding_id(),
+                        kind: if d.kind == "keyboard" { platform_linux::native::InputKind::Keyboard } else { platform_linux::native::InputKind::Mouse },
+                    });
+                }
+            }
+        }
+        Ok(result)
+    };
+    input.devices(registrations(&config)?);
+    let mut last_connections = std::time::Instant::now();
     let mut switcher = ProfileSwitcher::new(config.validate()?, input.clone());
     let status = StatusStore::default();
     let mut monitor = platform_kde::dbus::KdeWindowMonitor::session_with_input(status.clone(), input.clone())?;
@@ -113,7 +134,7 @@ fn run_kde(once: bool) -> Result<(), String> {
             match remap_config::load(&path) {
                 Ok(next) => {
                     if next != config {
-                        if next.devices != config.devices { input.devices(registrations(&next)); }
+                        if next.devices != config.devices { input.devices(registrations(&next)?); }
                         match switcher.replace_profiles(next.validate()?, &last_event) {
                             Ok(()) => { config = next; reloaded = true; last_error = None; eprintln!("Saved profiles loaded: revision {}.", config.revision); },
                             Err(e) => { if last_error.as_ref() != Some(&e) { eprintln!("Native mapping rejected: {e}"); } last_error = Some(e); },
@@ -132,6 +153,13 @@ fn run_kde(once: bool) -> Result<(), String> {
                     Err(e) => { input.pause_for_error(format!("Remapeamento pausado ao trocar de perfil: {e}")); switcher.handle(&last_event)? }
                 }
             } else { false };
+            if last_connections.elapsed() >= std::time::Duration::from_millis(500) {
+                match registrations(&config) {
+                    Ok(devices) => input.connections(devices),
+                    Err(error) => input.pause_for_error(format!("Não foi possível verificar as conexões: {error}")),
+                }
+                last_connections = std::time::Instant::now();
+            }
             let input_state = input.statuses();
             let input_changed = input_state != last_input_state;
             last_input_state = input_state.clone();

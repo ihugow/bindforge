@@ -57,7 +57,7 @@ export function NativeInputPanel({ native, connected, simulation, config, focuse
   if (device) {
     const ownActive = !!status?.active && status.device_id === device.id;
     const otherActive = !!status?.active && !ownActive;
-    const label = !native || !connected ? "Serviço indisponível" : !available ? "Desconectado" : !status ? "Verificando…" : ownActive ? "Remapeamento ativo" : otherActive ? `Outro ${name} ativo` : "Pausado";
+    const label = !native || !connected ? "Serviço indisponível" : !status ? "Verificando…" : ownActive ? (status.message.startsWith("Aguardando uma conexão") ? "Aguardando conexão" : "Remapeamento ativo") : !available ? "Desconectado" : otherActive ? `Outro ${name} ativo` : "Pausado";
     return <div className="device-remapping">
       <span className="status-chip" data-state={ownActive ? "active" : "paused"} role="status">{label}</span>
       <div className="device-card-actions">

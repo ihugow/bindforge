@@ -8,6 +8,6 @@ export type AccessStatus = {
 export type AccessResult = { status: AccessStatus; reconnect_required: boolean; message: string };
 export type AccessAction = "grant" | "revoke";
 export const deviceAccessApi = {
-  status: (deviceId: string) => invoke<AccessStatus>("get_device_access", { deviceId }),
-  control: (deviceId: string, action: AccessAction, fingerprint: string) => invoke<AccessResult>("configure_device_access", { deviceId, action, fingerprint }),
+  status: (deviceId: string, connectionId?: string) => invoke<AccessStatus>("get_device_access", { deviceId, connectionId }),
+  control: (deviceId: string, action: AccessAction, fingerprint: string, connectionId?: string) => invoke<AccessResult>("configure_device_access", { deviceId, connectionId, action, fingerprint }),
 };

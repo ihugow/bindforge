@@ -1,3 +1,4 @@
+import { bindingScope } from "./configured-devices";
 import { AppSelect } from "./app-select";
 import { useRef, useState } from "react";
 import { Modal } from "./modal";
@@ -17,7 +18,7 @@ export function MouseEditor({ profile, revision, device, simulation = true, save
   const [error, setError] = useState("");
   const [discard, setDiscard] = useState(false);
   const buttonTrigger = useRef<HTMLElement | null>(null);
-  const scopeId = device?.interface_id ?? null;
+  const scopeId = device ? bindingScope(device) : null;
   const dirty = JSON.stringify(bindings) !== JSON.stringify(profile.bindings);
   const controls = mouseControls(device?.button_count ?? 5);
   function dismiss() { if (dirty) setDiscard(true); else close(); }

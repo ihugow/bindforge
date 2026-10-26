@@ -1,3 +1,4 @@
+import { connectionsOf } from "./configured-devices";
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "./modal";
 import { deviceAccessApi, type AccessAction, type AccessStatus } from "./device-access";
@@ -16,6 +17,8 @@ export function DeviceAccessPanel({ device, api = deviceAccessApi, close, restor
   device: ConfiguredDevice; api?: typeof deviceAccessApi; close: () => void;
   restoreFocus?: React.RefObject<HTMLElement | null>; onChanged?: () => void;
 }) {
+  const [connectionId, setConnectionId] = useState(connectionsOf(device)[0].interface_id);
+  const connectionArg = device.connections?.length ? connectionId : undefined;
   const [status, setStatus] = useState<AccessStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [operation, setOperation] = useState<AccessAction | null>(null);
@@ -27,24 +30,25 @@ export function DeviceAccessPanel({ device, api = deviceAccessApi, close, restor
   useEffect(() => {
     let cancelled = false;
     setLoading(true); setError("");
-    void api.status(device.id).then(next => { if (!cancelled) setStatus(next); }).catch(e => { if (!cancelled) { setStatus(null); setError(String(e)); } }).finally(() => { if (!cancelled) setLoading(false); });
+    void api.status(device.id, connectionArg).then(next => { if (!cancelled) setStatus(next); }).catch(e => { if (!cancelled) { setStatus(null); setError(String(e)); } }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [device.id, device.interface_id, api, refresh]);
+  }, [device.id, device.interface_id, connectionArg, api, refresh]);
   async function change(action: AccessAction) {
     if (busy || !status) return;
     setOperation(action); setError(""); setMessage("");
     try {
-      const result = await api.control(device.id, action, status.fingerprint);
+      const result = await api.control(device.id, action, status.fingerprint, connectionArg);
       setStatus(result.status); setMessage(result.message); setReconnect(result.reconnect_required); onChanged?.();
     } catch (e) {
       setError(String(e));
       // Authorization may have completed before a disconnect/error. Read the actual rule state.
-      try { setStatus(await api.status(device.id)); } catch { setStatus(null); }
+      try { setStatus(await api.status(device.id, connectionArg)); } catch { setStatus(null); }
       onChanged?.();
     } finally { setOperation(null); }
   }
   return <Modal title={`Acesso · ${device.name}`} compact onDismiss={close} busy={busy} restoreFocus={restoreFocus}>
     <p>Autorize a interface deste {device.kind === "keyboard" ? "teclado" : "mouse"} para usar o remapeamento físico.</p>
+    {device.connections?.length && <label>Conexão <select disabled={busy} value={connectionId} onChange={e => { setStatus(null); setMessage(""); setReconnect(false); setConnectionId(e.target.value); }}>{device.connections.map(c => <option key={c.interface_id} value={c.interface_id}>{c.name}</option>)}</select></label>}
     {loading && <p role="status">Consultando as permissões…</p>}
     {status && <>
       <p className="hint">Interface identificada: {status.device_name} · {status.model}</p>
@@ -59,7 +63,7 @@ export function DeviceAccessPanel({ device, api = deviceAccessApi, close, restor
     </>}
     {operation && <p role="status">{operation === "grant" ? "Aguardando autenticação para conceder acesso…" : "Aguardando autenticação para remover a autorização…"}</p>}
     {message && <p role="status">{message}</p>}
-    {reconnect && <p className="hint">Depois de reconectar, atualize a lista de dispositivos. Se a interface mudou, selecione-a novamente no cadastro.</p>}
+    {reconnect && <p className="hint">Depois de reconectar, atualize o estado. Sem número de série, trocar de porta pode exigir um novo vínculo.</p>}
     {error && <p role="alert">{error}</p>}
     <div className="button-row modal-actions">
       <button type="button" className="secondary-button" disabled={busy} onClick={() => setRefresh(n => n + 1)}>Atualizar estado</button>

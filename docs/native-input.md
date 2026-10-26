@@ -16,8 +16,14 @@ aceitas quando oferecem BTN_LEFT e os eixos relativos X/Y. Anunciar KEY_A ou
 controles multimídia não invalida um mouse. Interfaces virtuais, saídas do app e
 teclados sem ponteiro são recusados nesse slot de mouse. O descritor aberto tem seu número de
 dispositivo conferido novamente.
-Não há hotplug automático: desconexão pausa e requer nova ativação. Ausência de
-janela/foco também pausa; ativar exige foco identificado pela ponte KWin.
+O cadastro pode associar receptor, cabo e Bluetooth ao mesmo conjunto de ações.
+Após ativação, o daemon acompanha as interfaces e usa a primeira conexão disponível
+na prioridade salva. A troca encerra e libera a captura anterior antes de abrir a
+nova; desconectar todas mantém a espera por uma conexão vinculada. O reconhecimento
+usa impressão digital udev, com limite de porta física quando não há identidade
+individual. Veja [cadastro e conexões](devices.md#conexões-do-mesmo-dispositivo).
+Ausência de janela/foco pausa e cancela a retomada automática; ativar exige foco
+identificado pela ponte KWin.
 Bloqueio, inatividade da sessão e suspensão também pausam o remapeamento via
 logind. O retorno exige ativação explícita; falha do monitor impede a captura.
 Veja [comportamento e validação da sessão](session-lifecycle.md).
@@ -60,7 +66,9 @@ Os buffers de quadro e saída são reutilizados; movimentos e rolagem são adici
 diretamente à saída, sem criar um vetor para cada evento. A leitura percorre o
 iterador evdev sem copiá-lo para um vetor intermediário.
 SYN_DROPPED, erro de leitura, quadro acima de 4096 eventos ou falha de saída encerram
-o remapeamento e liberam entrada/saída. Não há medição de latência de ponta a ponta;
+o remapeamento e liberam entrada/saída. Somente remoção física (ENODEV/ENXIO ou
+fim do fluxo) permite a reconexão automática de uma captura previamente ativada;
+outros erros exigem ativação explícita. Não há medição de latência de ponta a ponta;
 a remoção da espera fixa não representa uma garantia de latência zero.
 
 Validação da espera orientada a eventos (24 de outubro de 2026):
@@ -104,8 +112,10 @@ específicas após autenticação administrativa explícita.
 
 Esses comandos não aceitam código, caminhos de dispositivo ou eventos arbitrários.
 O cliente fixa o dono único do daemon. O campo `simulation` de Status1 agora também
-aceita false, indicando captura nativa ativa; true significa entrada pausada neste
-modo. Mudanças de modo e erros de entrada também publicam StatusChanged. A UI usa
+aceita false, indicando remapeamento nativo habilitado; true significa entrada
+pausada neste modo. O campo ativo permanece true durante a espera por reconexão
+física, com o ID cadastrado preservado e uma mensagem de espera; **Pausar** cancela
+essa intenção. Isso não significa que exista uma interface capturada durante a espera. Mudanças de modo e erros de entrada também publicam StatusChanged. A UI usa
 esses eventos para renovar o estado de entrada, sem polling contínuo.
 
 ## Teste virtual isolado

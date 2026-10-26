@@ -1,3 +1,4 @@
+import { connectedInterface } from "./configured-devices";
 import { AppSelect } from "./app-select";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MouseArt, KeyboardArt } from "./device-art";
@@ -82,7 +83,7 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
   const remapping = (device: ConfiguredDevice, configure?: () => void) => <NativeInputPanel
     device={device} kind={device.kind} configure={configure} native={native} connected={connected} focused={connected && daemon.status.focus_state === "focused"}
     version={connected ? daemon.status.revision : ""} simulation={simulation} config={config} api={inputApis?.[device.kind]}
-    available={inventory.phase !== "ready" || devices.some(d => d.id === device.interface_id)} />;
+    available={inventory.phase !== "ready" || !!connectedInterface(device, devices)} />;
   const confirmNavigation = pending && <Modal title="Alterações não salvas" compact onDismiss={() => setPending(null)} initialFocus="[data-keep-editing]">
     <p>Você alterou as ações deste perfil. Continue editando para salvar ou descarte as alterações antes de sair.</p><div className="button-row modal-actions">
       <button type="button" data-keep-editing onClick={() => setPending(null)}>Continuar editando</button>
@@ -109,10 +110,10 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
     {!connected && <p className="hint" role="status">Inicie o serviço em Configurações para ativar o remapeamento. Seus perfis salvos continuam disponíveis para edição.</p>}
     <div className="device-showcase device-overview">
       {(config?.devices ?? []).map(device => <article key={device.id} className="device-card device-overview-card" aria-label={device.name}>
-        <div className="device-card-top"><span>{device.kind === "mouse" ? "MOUSE" : "TECLADO"}</span><DeviceBattery device={devices.find(d => d.id === device.interface_id)} /></div>
+        <div className="device-card-top"><span>{device.kind === "mouse" ? "MOUSE" : "TECLADO"}</span><DeviceBattery device={connectedInterface(device, devices)} /></div>
         <button className="device-art-button" type="button" disabled={!profile} aria-label={`Abrir configuração de ${device.name}`} onClick={() => open(device)}><span className="device-card-art">{device.kind === "mouse" ? <MouseArt /> : <KeyboardArt />}</span></button>
         <h3 className="device-card-name">{device.name}</h3><span className="device-card-caption">{device.kind === "mouse" ? `${device.button_count} botões` : layouts[device.layout!]}</span>
-        <span className="device-card-caption">{inventory.phase !== "ready" ? "Conexão não verificada" : devices.some(d => d.id === device.interface_id) ? "Conectado" : "Desconectado"}</span>
+        <span className="device-card-caption">{inventory.phase !== "ready" ? "Conexão não verificada" : !!connectedInterface(device, devices) ? "Conectado" : "Desconectado"}</span>
         {remapping(device, profile ? () => open(device) : undefined)}
       </article>)}
     </div>
@@ -124,6 +125,6 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
       <button type="button" className="secondary-button" disabled={!native || !connected || inventory.phase === "loading"} onClick={() => setRefresh(n => n + 1)}>Atualizar dispositivos</button>
     </div></details>
     {inventory.phase === "error" && <p role="alert">{inventory.message}</p>}{error && <p role="alert">{error}</p>}
-    {adding && config && <DeviceForm inventory={devices} close={() => setAdding(false)} save={async device => { const saved = await api.save(withDevice(config, device, devices), config.revision); onConfigChange(saved); onSaved(); }} />}
+    {adding && config && <DeviceForm refreshInventory={read} inventory={devices} close={() => setAdding(false)} save={async (device, snapshot) => { const saved = await api.save(withDevice(config, device, snapshot ?? devices), config.revision); onConfigChange(saved); onSaved(); }} />}
   </section>;
 }

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conexões do mouse · fixture</title><body><main><p>Fixture com dados sintéticos; não acessa dispositivos físicos.</p><div id="root"></div></main>
+<script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { DeviceForm } from '../src/device-form.tsx';
+import '../src/style.css';
+const inventory = [
+  { id: 'receiver', name: 'Mouse de exemplo · receptor', kind: 'mouse', connection: 'usb', mouse_fingerprint: 'a'.repeat(64) },
+  { id: 'cable', name: 'Mouse de exemplo · cabo', kind: 'composite', connection: 'usb', mouse_fingerprint: 'b'.repeat(64) },
+];
+const device = { id: 'mouse', name: 'Meu mouse', kind: 'mouse', interface_id: 'receiver', button_count: 5, layout: null,
+  connections: [{ interface_id: 'receiver', name: 'Receptor', fingerprint: 'a'.repeat(64) }] };
+createRoot(document.getElementById('root')).render(React.createElement(DeviceForm, {
+  device, inventory, refreshInventory: async () => inventory, close: () => {}, save: async value => { window.savedDevice = value; },
+}));
+</script></body></html>

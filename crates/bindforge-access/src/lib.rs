@@ -2,7 +2,7 @@
 #![cfg(target_os = "linux")]
 mod store;
 mod device;
-pub use device::{inspect, Target};
+pub use device::{inspect, resolve, identities, Target};
 pub use store::{apply_system, managed, revoked, ensure_not_revoked};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

@@ -37,10 +37,12 @@ Desinstalar o pacote não remove automaticamente as autorizações criadas em /e
 Antes de desinstalar, remova as autorizações pela interface e reconecte os dispositivos.
 Revogações já gravadas também permanecem para preservar a escolha após reinstalação.
 
-O dispositivo precisa estar conectado e corretamente vinculado para gerenciar sua
-autorização nesta versão. O vínculo do cadastro ainda é local à conexão; após
-reconectar, pode ser necessário selecionar a nova interface. A autorização udev
-não depende do número eventN.
+A conexão escolhida precisa estar presente e vinculada ao cadastro para gerenciar
+sua autorização. O painel permite selecionar cada conexão salva (receptor, cabo,
+Bluetooth); a autorização é individual por interface. A impressão digital salva
+resolve o syspath atual sem depender do número eventN. Sem identidade individual,
+trocar a porta física pode exigir um novo vínculo. Revogar qualquer conexão do
+cadastro pausa o remapeamento correspondente e cancela sua retomada automática.
 
 ## Escopo das regras
 

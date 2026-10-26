@@ -10,10 +10,11 @@ A autorização para remapear é um fluxo separado, descrito em
 [acesso aos dispositivos](device-access.md).
 O adaptador usa libudev e atributos sysfs apenas para consulta de metadados.
 
-O inventário é um snapshot: carregamento ao conectar ao daemon e botão **Atualizar
-lista** para novas consultas. Hotplug automático e identidade persistente do
-cadastro ficam para etapas seguintes. O cadastro manual e ações
-específicas por interface estão implementados, com o limite de identidade abaixo.
+A UI consulta snapshots ao conectar ao daemon, periodicamente e pelo botão
+**Atualizar lista**. O daemon acompanha conexões de dispositivos ativados com
+consultas de metadados a cada 500 ms (mais o tempo de processamento do loop).
+O cadastro aceita múltiplas conexões explícitas com identidade persistente quando
+os metadados permitem; veja o fluxo de conexões abaixo.
 
 ## Arquitetura
 
@@ -57,11 +58,15 @@ helper de autorização pode usá-los para delimitar uma regra de acesso. A orde
 
 ## Identidade e duplicatas
 
-Cada interface mantém um ID opaco ao frontend baseado no syspath atual. **Esse ID
-não é uma identidade persistente**: pode mudar ao reiniciar, trocar de porta ou
-reconectar. O vínculo cadastrado é válido para esse identificador e não promete
-reconhecimento permanente. Se ele mudar, o cartão indica indisponibilidade e o
-usuário pode escolher a nova interface em **Editar dispositivo**.
+Cada interface mantém um ID opaco ao frontend baseado no syspath atual. Esse ID
+pode mudar ao reiniciar ou reconectar. Os novos vínculos salvam também a impressão
+digital do seletor udev usado pelas autorizações: fabricante/produto, interface e
+número de série/endereço físico quando disponível; sem isso, usam a porta física.
+A resolução exige correspondência única, sem agrupar pelo nome ou modelo.
+Sem número de série, trocar de porta pode exigir um novo vínculo.
+Cadastros antigos sem `connections` mantêm o comportamento por syspath até serem
+editados e salvos; vínculos antigos desconectados podem ser preservados sem
+impressão digital, sem prometer reconhecimento persistente.
 
 Duas interfaces com o mesmo nome continuam separadas. Não agrupamos pelo receptor
 USB, pois um mesmo receptor pode representar mouse e teclado distintos. Um mouse
@@ -154,14 +159,45 @@ sem esse campo carregam como lista vazia. O backend valida até 64 dispositivos,
 IDs únicos e um único cadastro por par tipo/interface. Uma interface composta pode
 ser associada uma vez a mouse e outra a teclado. Nome e propriedades podem ser
 editados sem a interface conectada. Um vínculo novo exige interface compatível
-presente no snapshot. Não há identificação automática do modelo físico.
+presente no snapshot. Não há agrupamento automático de interfaces por modelo físico.
 
-Trocar a interface transfere as ações específicas do tipo de entrada correspondente
-(mouse/teclado) em todos os perfis. Se o destino já contém uma ação para um desses
-controles, a gravação é recusada com mensagem de conflito. Ações gerais e do outro
-tipo de entrada são preservadas. A gravação usa a mesma revisão otimista e troca
-atômica do arquivo de perfis. Reinicie daemon e shell Tauri após esta atualização,
-pois binários antigos rejeitam campos desconhecidos da configuração.
+### Conexões do mesmo dispositivo
+
+Em **Editar dispositivo**, use **Atualizar interfaces**, selecione a interface,
+informe um nome (Receptor, Cabo ou Bluetooth) e clique **Vincular conexão**.
+Até oito conexões podem pertencer ao mesmo cadastro. A conexão nova entra no topo;
+**Priorizar** move uma conexão existente para o topo. Deixe o cabo primeiro para
+que seja usado mesmo quando o receptor continuar conectado. Cada cartão mostra o
+nome escolhido e, abaixo, o nome da interface detectada. **Editar** abre os campos
+para renomear ou trocar a interface; **Salvar conexão** confirma o rascunho e
+**Cancelar edição** o descarta. Grave o dispositivo para persistir as alterações.
+O nome detectado é preservado para exibição quando a interface estiver desconectada.
+O gerenciamento de acesso permite escolher e autorizar cada conexão salva.
+
+As ações dos cadastros com conexões usam `device:<id do cadastro>`, independente
+do transporte. Ao salvar um cadastro antigo, suas ações específicas do tipo de
+entrada são migradas em todos os perfis. Conflitos entre ações existentes de
+interfaces vinculadas são recusados; ações gerais e do outro tipo são preservadas.
+Remover ou priorizar uma conexão não apaga nem duplica ações. A gravação mantém
+revisão otimista e substituição atômica; reinicie daemon e shell Tauri para usar
+os novos campos com binários atualizados.
+
+Após ativação explícita, o daemon usa apenas a primeira conexão disponível e
+acompanha sua presença. Ao trocar de transporte, encerra a captura anterior,
+libera o estado sintético e abre a nova interface com as mesmas ações e validações
+de acesso/capacidades. Se todas desconectarem, mantém a intenção de ativação e
+aguarda uma conexão vinculada. Reconexão física pode retomar automaticamente;
+pausa manual, mudança de cadastro, perda de foco, bloqueio, suspensão, revogação
+e erros de captura cancelam essa intenção e exigem ativação explícita.
+Todos os botões/teclas devem estar soltos ao abrir a nova conexão. Uma falha de
+autorização ou de abertura pausa o remapeamento, sem tentar outras interfaces
+silenciosamente. Não há promessa de transição sem interrupção durante a troca.
+
+Verificação automatizada cobre migração e conflitos, prioridade cabo/receptor,
+fallback e reconexão com novo caminho, vínculo lógico do plano, validação da
+configuração e respeito às pausas/revogação. A fixture
+`tests/connections-browser.html` usa dados sintéticos e permite revisar o formulário.
+A troca física entre cabo e receptor ainda precisa de validação no hardware.
 
 No Início, cada cadastro tem cartão com nome, propriedades e estado da interface.
 O cartão do mouse abre seu escopo específico e a quantidade declarada de controles;

@@ -3,7 +3,7 @@ use evdev::{raw_stream::RawDevice, uinput::VirtualDevice, AbsoluteAxisCode, Attr
 use remap_core::{DeviceConnection, DeviceEnumerator, DeviceKind};
 use super::{Engine, Plan, DeviceRegistration, NativeStatus, InputKind, CaptureGuard};
 use super::engine::EmergencyChord;
-const OUTPUT_NAME: &str = "BindForge Output";
+const OUTPUT_PREFIX: &str = "BindForge";
 const TEST_INPUT: &str = "BindForge Test Input";
 const TEST_OUTPUT: &str = "BindForge Test Output";
 fn error(context: &str, e: impl std::fmt::Display) -> String { format!("{context}: {e}") }
@@ -64,7 +64,7 @@ fn validate_capabilities(keys: &[KeyCode], relative: &[RelativeAxisCode], absolu
     Ok(())
 }
 fn validate_source(device: &RawDevice, kind: InputKind) -> Result<(), String> {
-    if device.name().is_some_and(|n| n.starts_with(OUTPUT_NAME)) {
+    if device.name().is_some_and(|n| n.starts_with(OUTPUT_PREFIX)) {
         return Err("A saída virtual do app não pode ser capturada.".into());
     }
     if kind == InputKind::Keyboard {
@@ -149,13 +149,17 @@ impl Wake {
 enum Control { Apply(Plan, mpsc::SyncSender<Result<(),String>>) }
 pub(super) struct Worker {
     device: DeviceRegistration, control: mpsc::SyncSender<Control>, stopping: Arc<AtomicBool>,
-    wake: Arc<Wake>, health: Arc<Mutex<NativeStatus>>, thread: Option<thread::JoinHandle<()>>,
+    disconnected: Arc<AtomicBool>, wake: Arc<Wake>, health: Arc<Mutex<NativeStatus>>, thread: Option<thread::JoinHandle<()>>,
 }
 impl Worker {
     pub fn start(device: DeviceRegistration, plan: Plan, guard: CaptureGuard) -> Result<Self,String> {
         guard()?;
         let mut source = open_registered(&device.interface_id, device.kind)?;
-        let mut output = virtual_output(&source, OUTPUT_NAME)?;
+        let output_name = match device.kind {
+            InputKind::Mouse => "BindForge Mouse Output",
+            InputKind::Keyboard => "BindForge Keyboard Output",
+        };
+        let mut output = virtual_output(&source, output_name)?;
         let output_node = node(&mut output)?;
         wait_initialized(&output_node)?;
         source.grab().map_err(|e| error("Não foi possível capturar exclusivamente o dispositivo. Pause outros remapeadores para essa interface", e))?;
@@ -166,17 +170,18 @@ impl Worker {
         let (control, commands) = mpsc::sync_channel(2); let stopping = Arc::new(AtomicBool::new(false));
         let health = Arc::new(Mutex::new(NativeStatus { active: true, device_id: device.id.clone(), message: String::new() }));
         let stop = stopping.clone(); let state = health.clone();
+        let disconnected = Arc::new(AtomicBool::new(false)); let removed = disconnected.clone();
         let kind = device.kind;
         let wake = Arc::new(Wake::new()?); let worker_wake = wake.clone();
         let thread = thread::Builder::new().name(format!("{}-remapper", kind.name())).spawn(move || {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| pump(&mut source, output, plan, &commands, &stop, kind, guard.as_ref(), &worker_wake)))
-                .unwrap_or_else(|_| Err("A tarefa de entrada falhou e foi encerrada.".into()));
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| pump(&mut source, output, plan, &commands, &stop, kind, guard.as_ref(), &worker_wake, &removed)))
+                .unwrap_or_else(|_| { removed.store(false, Ordering::Relaxed); Err("A tarefa de entrada falhou e foi encerrada.".into()) });
             // Closing RawDevice releases EVIOCGRAB even on errors/panic.
             drop(source);
             let mut state = state.lock().unwrap_or_else(|e| e.into_inner()); state.active = false;
             state.message = result.err().unwrap_or_default();
         }).map_err(|e| e.to_string())?;
-        Ok(Self { device, control, stopping, wake, health, thread: Some(thread) })
+        Ok(Self { device, control, stopping, disconnected, wake, health, thread: Some(thread) })
     }
     #[cfg(test)]
     pub(super) fn fixture(device: DeviceRegistration, applied: Arc<Mutex<Vec<Plan>>>, fail: bool) -> Self {
@@ -194,8 +199,15 @@ impl Worker {
             }
             state.lock().unwrap().active = false;
         });
-        Self { device, control, stopping, wake, health, thread: Some(thread) }
+        Self { device, control, stopping, disconnected: Arc::new(AtomicBool::new(false)), wake, health, thread: Some(thread) }
     }
+    #[cfg(test)]
+    pub(super) fn fail_for_test(&self, message: &str, disconnected: bool) {
+        self.disconnected.store(disconnected, Ordering::Relaxed);
+        let mut status = self.health.lock().unwrap(); status.active = false; status.message = message.into();
+    }
+    pub fn disconnected(&self) -> bool { self.disconnected.load(Ordering::Relaxed) }
+    pub fn binding_id(&self) -> &str { &self.device.binding_id }
     pub fn interface_id(&self) -> &str { &self.device.interface_id }
     pub fn status(&self) -> NativeStatus { self.health.lock().unwrap_or_else(|e| e.into_inner()).clone() }
     pub fn apply(&self, plan: Plan) -> Result<(),String> {
@@ -227,7 +239,7 @@ impl CaptureAuthorization<'_> {
         Ok(())
     }
 }
-fn pump(source: &mut RawDevice, mut output: VirtualDevice, plan: Plan, commands: &mpsc::Receiver<Control>, stop: &AtomicBool, kind: InputKind, guard: &(dyn Fn() -> Result<(), String> + Send + Sync), wake: &Wake) -> Result<(),String> {
+fn pump(source: &mut RawDevice, mut output: VirtualDevice, plan: Plan, commands: &mpsc::Receiver<Control>, stop: &AtomicBool, kind: InputKind, guard: &(dyn Fn() -> Result<(), String> + Send + Sync), wake: &Wake, disconnected: &AtomicBool) -> Result<(),String> {
     let mut engine = Engine::new(plan); let mut frame = Vec::with_capacity(32); let mut out = Vec::with_capacity(32); let mut emergency = EmergencyChord::default();
     let result = (|| {
         let input_fd = source.as_fd().try_clone_to_owned().map_err(|e| e.to_string())?;
@@ -241,9 +253,13 @@ fn pump(source: &mut RawDevice, mut output: VirtualDevice, plan: Plan, commands:
             let mut events = match source.fetch_events() {
                 Ok(events) => events.peekable(), Err(e) if e.kind() == io::ErrorKind::WouldBlock => { wake.wait(&input_fd, authorization.remaining())?; continue; },
                 Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
-                Err(e) => return Err(error("Dispositivo desconectado ou leitura interrompida", e)),
+                Err(e) if [rustix::io::Errno::NODEV.raw_os_error(), rustix::io::Errno::NXIO.raw_os_error()].into_iter().any(|code| e.raw_os_error() == Some(code)) => {
+                    disconnected.store(true, Ordering::Relaxed);
+                    return Err(error("Dispositivo desconectado ou leitura interrompida", e));
+                },
+                Err(e) => return Err(error("Falha lendo o dispositivo; ative novamente", e)),
             };
-            if events.peek().is_none() { return Err("O dispositivo encerrou o fluxo de eventos.".into()); }
+            if events.peek().is_none() { disconnected.store(true, Ordering::Relaxed); return Err("O dispositivo encerrou o fluxo de eventos.".into()); }
             for event in events {
                 if event.event_type() == EventType::SYNCHRONIZATION {
                     if event.code() == 3 { return Err("O fluxo do dispositivo perdeu eventos. Remapeamento pausado; ative novamente.".into()); }
@@ -268,6 +284,7 @@ fn pump(source: &mut RawDevice, mut output: VirtualDevice, plan: Plan, commands:
         Ok(())
     })();
     let release = emit(&mut output, &engine.release_all());
+    if release.is_err() { disconnected.store(false, Ordering::Relaxed); }
     // Destroy synthetic state before returning to original physical behavior.
     drop(output);
     let ungrab = source.ungrab().map_err(|e| e.to_string());
@@ -326,7 +343,7 @@ fn isolated_test(kind: InputKind) -> Result<(),String> {
     let plan = Plan(std::collections::BTreeMap::from([(source_code,vec![KeyCode::KEY_V.0])]));
     let (send, commands) = mpsc::sync_channel(2); let stop = Arc::new(AtomicBool::new(false)); let worker_stop = stop.clone();
     let wake = Arc::new(Wake::new()?); let worker_wake = wake.clone();
-    let worker = thread::spawn(move || pump(&mut source, output, plan, &commands, &worker_stop, kind, &|| Ok(()), &worker_wake));
+    let worker = thread::spawn(move || pump(&mut source, output, plan, &commands, &worker_stop, kind, &|| Ok(()), &worker_wake, &AtomicBool::new(false)));
     let result = (|| {
         let button = |value| InputEvent::new(EventType::KEY.0,source_code,value);
         input.emit(&[button(1),button(0)]).map_err(|e| e.to_string())?;
@@ -438,7 +455,9 @@ mod tests {
     fn virtual_and_keyboard_only_registrations_remain_rejected() {
         assert!(!physical_mouse(DeviceKind::Keyboard, DeviceConnection::Usb, "Keyboard"));
         assert!(!physical_mouse(DeviceKind::Composite, DeviceConnection::Virtual, "keymasq-mouse"));
-        assert!(!physical_mouse(DeviceKind::Mouse, DeviceConnection::Usb, OUTPUT_NAME));
+        for name in ["BindForge Output", "BindForge Mouse Output", "BindForge Keyboard Output"] {
+            assert!(!physical_mouse(DeviceKind::Mouse, DeviceConnection::Usb, name));
+        }
         assert!(physical_mouse(DeviceKind::Mouse, DeviceConnection::Usb, "Mouse"));
     }
     #[test]
@@ -449,7 +468,9 @@ mod tests {
         assert!(physical_keyboard(DeviceKind::Composite, DeviceConnection::Bluetooth, "Keyboard"));
         assert!(!physical_keyboard(DeviceKind::Mouse, DeviceConnection::Usb, "Mouse"));
         assert!(!physical_keyboard(DeviceKind::Keyboard, DeviceConnection::Virtual, "Keyboard"));
-        assert!(!physical_keyboard(DeviceKind::Keyboard, DeviceConnection::Usb, OUTPUT_NAME));
+        for name in ["BindForge Output", "BindForge Mouse Output", "BindForge Keyboard Output"] {
+            assert!(!physical_keyboard(DeviceKind::Keyboard, DeviceConnection::Usb, name));
+        }
         assert!(validate_keyboard(&keys, &[], &events).is_ok());
         assert!(validate_keyboard(&[KeyCode::KEY_VOLUMEUP], &[], &events).is_err());
         assert!(validate_keyboard(&keys, &[AbsoluteAxisCode::ABS_X], &events).is_err());

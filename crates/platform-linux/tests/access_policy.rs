@@ -17,7 +17,7 @@ fn dbus_activation_cannot_bypass_explicit_revocation() {
     }));
     input.apply_profile(&remap_core::demo_profiles().profiles()[0]).unwrap();
     input.devices([InputKind::Mouse, InputKind::Keyboard].into_iter().map(|kind| DeviceRegistration {
-        id: if kind == InputKind::Mouse { "mouse" } else { "keyboard" }.into(), name: "Fixture".into(), interface_id: "never-open-a-physical-device".into(), kind,
+        id: if kind == InputKind::Mouse { "mouse" } else { "keyboard" }.into(), name: "Fixture".into(), interface_id: "never-open-a-physical-device".into(), binding_id: "fixture".into(), kind,
     }).collect());
     input.focus(true);
     let server = Builder::address(address.trim()).unwrap().serve_at(PATH, InputInterface(input.clone())).unwrap().name(SERVICE).unwrap().build().unwrap();
