@@ -327,6 +327,27 @@ removendo o arquivo temporário. SIGKILL ou falha abrupta não permitem limpeza 
 a próxima execução recupera a ponte remanescente pelo nome reservado. Fora do KDE,
 o daemon aguarda o KWin e o diagnóstico informa a indisponibilidade.
 
+## Exportar e importar configurações
+
+Em **Configurações → Backup das configurações**, use **Exportar configurações**
+para escolher onde salvar um JSON. O arquivo inclui todos os dispositivos e suas
+conexões (inclusive desconectados), perfis, ícones, regras por aplicativo e ações
+de mouse e teclado. Guarde uma cópia fora do computador antes de formatar.
+
+Depois de reinstalar, use **Importar configurações**, selecione o JSON e confira
+a quantidade de dispositivos e perfis antes de confirmar **Substituir e importar**.
+A importação substitui a configuração atual; exporte-a primeiro se quiser mantê-la.
+Arquivos inválidos, versões incompatíveis e backups acima de 1 MiB são rejeitados
+sem alterar a configuração atual. Mudanças feitas depois da prévia também impedem
+a restauração até cancelar e selecionar o backup novamente. O daemon recarrega as
+alterações automaticamente e pode aplicar as ações importadas se estiver ativo.
+
+Confira as conexões dos dispositivos na nova instalação: identificadores podem
+mudar com portas ou hardware. Permissões udev/polkit e inicialização automática do
+serviço são próprias do sistema e devem ser configuradas novamente. O backup usa
+o mesmo formato versionado de `profiles.json` e pode ser restaurado com o serviço
+parado, sem os dispositivos conectados.
+
 ## Criar e editar perfis
 
 No aplicativo nativo, abra **Seus perfis → Criar perfil**. A criação e a edição

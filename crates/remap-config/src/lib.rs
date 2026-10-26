@@ -161,6 +161,25 @@ pub fn load(path: &Path) -> Result<Config, String> {
     config.validate()?;
     Ok(config)
 }
+/// Portable backup uses the same versioned format as the saved configuration.
+/// Parse and validate before allowing a restore; devices may be disconnected.
+pub fn parse_backup(bytes: &[u8]) -> Result<Config, String> {
+    if bytes.len() as u64 > MAX_BYTES { return Err("Backup excede 1 MiB.".into()); }
+    let config: Config = serde_json::from_slice(bytes).map_err(|e| format!("Backup inválido: {e}"))?;
+    config.validate()?;
+    Ok(config)
+}
+pub fn export_backup(config: &Config) -> Result<Vec<u8>, String> {
+    config.validate()?;
+    let bytes = serde_json::to_vec_pretty(config).map_err(|e| e.to_string())?;
+    if bytes.len() as u64 > MAX_BYTES { return Err("Backup excede 1 MiB.".into()); }
+    Ok(bytes)
+}
+pub fn restore_backup(path: &Path, bytes: &[u8], expected_revision: u32) -> Result<Config, String> {
+    // The backup's revision belongs to its original installation. save() assigns
+    // a fresh local revision and checks that the preview is still current.
+    save(path, parse_backup(bytes)?, expected_revision)
+}
 struct RemoveOnDrop(PathBuf);
 impl Drop for RemoveOnDrop { fn drop(&mut self) { let _ = fs::remove_file(&self.0); } }
 /// Serialize writers, reject stale editors, then atomically replace the file.
@@ -191,6 +210,35 @@ pub fn save(path: &Path, mut config: Config, expected_revision: u32) -> Result<C
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn backup_restores_complete_offline_config_with_a_local_revision() {
+        let target = path();
+        let mut original = Config::default();
+        original.devices.push(ConfiguredDevice {
+            id: "offline-mouse".into(), name: "Meu mouse".into(), kind: "mouse".into(),
+            interface_id: "disconnected".into(), button_count: Some(5), layout: None,
+            connections: vec![Connection { interface_id: "disconnected".into(), name: "Cabo".into(),
+                interface_name: Some("Mouse USB".into()), fingerprint: Some("a".repeat(64)) }],
+        });
+        original.profiles[0].icon = Some("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII=".into());
+        original.profiles[1].bindings[0].device_id = Some("device:offline-mouse".into());
+        original.revision = 99;
+        let bytes = export_backup(&original).unwrap();
+        assert_eq!(parse_backup(&bytes).unwrap(), original);
+        let restored = restore_backup(&target, &bytes, 0).unwrap();
+        original.revision = 1;
+        assert_eq!(restored, original);
+        assert_eq!(load(&target).unwrap(), original);
+        assert!(restore_backup(&target, &bytes, 0).is_err());
+        let mut future = original.clone(); future.version = 2;
+        let mut invalid_device = original.clone(); invalid_device.devices[0].button_count = Some(0);
+        for invalid in [b"{broken".to_vec(), vec![b' '; MAX_BYTES as usize + 1],
+            serde_json::to_vec(&future).unwrap(), serde_json::to_vec(&invalid_device).unwrap()] {
+            assert!(restore_backup(&target, &invalid, 1).is_err());
+            assert_eq!(load(&target).unwrap(), original);
+        }
+        fs::remove_dir_all(target.parent().unwrap()).unwrap();
+    }
     #[test]
     fn profile_icons_roundtrip_and_legacy_profiles_keep_the_default() {
         let legacy = serde_json::to_value(Config::default()).unwrap();

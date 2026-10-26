@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod system_tray;
+mod backup;
 #[cfg(target_os = "linux")]
 mod kwin_integration;
 #[cfg(target_os = "linux")]
@@ -194,6 +195,23 @@ async fn save_profiles(config: remap_config::Config, expected_revision: u32) -> 
         remap_config::save(&remap_config::config_path()?, config, expected_revision)
     })
         .await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn export_configuration(window: tauri::WebviewWindow) -> Result<Option<String>, String> {
+    if window.label() != "main" { return Err("Unsupported window".into()); }
+    backup::export(window).await
+}
+#[tauri::command]
+async fn inspect_backup(contents: String) -> Result<remap_config::Config, String> {
+    remap_config::parse_backup(contents.as_bytes())
+}
+#[tauri::command]
+async fn import_configuration(contents: String, expected_revision: u32, window: tauri::WebviewWindow) -> Result<remap_config::Config, String> {
+    if window.label() != "main" { return Err("Unsupported window".into()); }
+    tauri::async_runtime::spawn_blocking(move || {
+        remap_config::restore_backup(&remap_config::config_path()?, contents.as_bytes(), expected_revision)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[derive(serde::Serialize)]
@@ -450,6 +468,6 @@ fn main() {
             }
         }
     });
-    builder.invoke_handler(tauri::generate_handler![find_application_icons, get_daemon_service, control_daemon_service, get_device_access, configure_device_access, get_input_status, start_mouse, pause_mouse, get_keyboard_status, start_keyboard, pause_keyboard, get_kwin_integration, configure_kwin_integration, start_window_capture, stop_window_capture, load_profiles, save_profiles, preview_profile, get_daemon_status, list_devices, start_daemon_status, stop_daemon_status])
+    builder.invoke_handler(tauri::generate_handler![find_application_icons, get_daemon_service, control_daemon_service, get_device_access, configure_device_access, get_input_status, start_mouse, pause_mouse, get_keyboard_status, start_keyboard, pause_keyboard, get_kwin_integration, configure_kwin_integration, start_window_capture, stop_window_capture, load_profiles, save_profiles, export_configuration, inspect_backup, import_configuration, preview_profile, get_daemon_status, list_devices, start_daemon_status, stop_daemon_status])
         .run(tauri::generate_context!()).expect("failed to start desktop shell");
 }

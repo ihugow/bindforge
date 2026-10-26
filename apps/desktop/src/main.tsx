@@ -4,6 +4,7 @@ import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import "./style.css";
 import { DaemonServicePanel } from "./daemon-service-panel";
 import { KwinIntegrationPanel } from "./kwin-integration-panel";
+import { BackupPanel } from "./backup-panel";
 import { HomePanel } from "./home-panel";
 import { WorkspaceTabs } from "./workspace-tabs";
 import { ProfileHistory } from "./profile-history";
@@ -59,7 +60,8 @@ function App() {
       profiles={visible => <ProfilesPanel currentConfig={config} active={visible} onConfigChange={setConfig} native={native} connected={connected} onSaved={() => setSelection(null)} />}
       devices={<DevicesPanel config={config} onConfigChange={setConfig} native={native} connected={connected} read={readDevices} />}
       settings={visible => <>
-        <div className="page-heading"><span className="eyebrow">DO SEU JEITO</span><h2>Configurações</h2><p>Inicialização, integração com o KDE e diagnóstico.</p></div>
+        <div className="page-heading"><span className="eyebrow">DO SEU JEITO</span><h2>Configurações</h2><p>Backup, inicialização, integração com o KDE e diagnóstico.</p></div>
+        <BackupPanel native={native} onRestored={restored => { setConfig(restored); setSelection(null); }} />
         <DaemonServicePanel native={native} active={visible} connected={connected} />
         <KwinIntegrationPanel native={native} active={visible} daemonState={connected ? daemon.status.focus_state : daemon.phase} />
         <section aria-labelledby="daemon-heading">
