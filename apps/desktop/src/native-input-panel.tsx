@@ -1,5 +1,5 @@
 import { AppSelect } from "./app-select";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { DeviceAccessButton } from "./device-access-panel";
 import { listen } from "@tauri-apps/api/event";
@@ -16,9 +16,9 @@ export const keyboardInputApi = {
   start: (deviceId: string) => invoke<InputStatus>("start_keyboard", { deviceId }),
   pause: () => invoke<InputStatus>("pause_keyboard"),
 };
-export function NativeInputPanel({ native, connected, simulation, config, focused = true, version = "", kind = "mouse", api = kind === "keyboard" ? keyboardInputApi : inputApi, device, configure, available = true }: {
+export function NativeInputPanel({ native, connected, simulation, config, focused = true, version = "", kind = "mouse", api = kind === "keyboard" ? keyboardInputApi : inputApi, device, actions, available = true }: {
   kind?: "mouse" | "keyboard"; focused?: boolean; version?: string; native: boolean; connected: boolean; simulation: boolean; config: Config | null | undefined; api?: typeof inputApi;
-  device?: ConfiguredDevice; configure?: () => void; available?: boolean;
+  device?: ConfiguredDevice; actions?: ReactNode; available?: boolean;
 }) {
   const [status, setStatus] = useState<InputStatus | null>(null);
   const [selected, setSelected] = useState("");
@@ -61,9 +61,9 @@ export function NativeInputPanel({ native, connected, simulation, config, focuse
     return <div className="device-remapping">
       <span className="status-chip" data-state={ownActive ? "active" : "paused"} role="status">{label}</span>
       <div className="device-card-actions">
-        {configure && <button type="button" onClick={configure} aria-label={`Configurar ${device.name}`}>Configurar ↗</button>}
         <button type="button" className="secondary-button" aria-label={`${ownActive ? "Pausar" : "Ativar"} ${device.name}`} disabled={!native || !connected || !status || busy || otherActive || !ownActive && (!focused || !available)} onClick={() => void act(!ownActive)}>{busy ? "Aguarde…" : ownActive ? "Pausar" : "Ativar"}</button>
         <DeviceAccessButton device={device} compact disabled={!native || !connected || busy} onChanged={() => setRefresh(n => n + 1)} />
+        {actions}
       </div>
       {!focused && !ownActive && connected && <p className="hint">Aguardando a identificação da janela em foco.</p>}
       {status?.message && <p className="hint" role="status">{status.message}</p>}{error && <p role="alert">{error}</p>}

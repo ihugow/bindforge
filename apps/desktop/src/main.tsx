@@ -11,7 +11,6 @@ import { ProfileHistory } from "./profile-history";
 import { ProfileName } from "./profile-name";
 import type { Config } from "./profiles";
 import { ProfilesPanel } from "./profiles-panel";
-import { DevicesPanel } from "./devices-panel";
 import type { DetectedDevice } from "./devices";
 import { watchDaemon, type DaemonConnection, type DaemonEvent } from "./daemon-status";
 
@@ -56,9 +55,8 @@ function App() {
   return <main className="app-root">
     <WorkspaceTabs status={<><span className={`connection-dot${connected ? " is-connected" : ""}`} aria-hidden="true" />
       {connected ? "Serviço conectado" : daemon.phase === "loading" ? "Conectando…" : daemon.phase === "browser" ? "Prévia no navegador" : "Serviço indisponível"}</>}
-      home={(visible, manageDevices) => <HomePanel config={config} native={native} daemon={daemon} active={visible} onConfigChange={setConfig} onSaved={() => setSelection(null)} read={readDevices} onManageDevices={manageDevices} />}
+      home={visible => <HomePanel config={config} native={native} daemon={daemon} active={visible} onConfigChange={setConfig} onSaved={() => setSelection(null)} read={readDevices} />}
       profiles={visible => <ProfilesPanel currentConfig={config} active={visible} onConfigChange={setConfig} native={native} connected={connected} onSaved={() => setSelection(null)} />}
-      devices={<DevicesPanel config={config} onConfigChange={setConfig} native={native} connected={connected} read={readDevices} />}
       settings={visible => <>
         <div className="page-heading"><span className="eyebrow">DO SEU JEITO</span><h2>Configurações</h2><p>Backup, inicialização, integração com o KDE e diagnóstico.</p></div>
         <BackupPanel native={native} onRestored={restored => { setConfig(restored); setSelection(null); }} />

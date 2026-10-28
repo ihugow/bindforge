@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MouseArt, KeyboardArt } from "./device-art";
 import { DeviceBattery } from "./device-battery";
 import { DeviceForm } from "./device-form";
+import { AppIcon } from "./app-icon";
 import { MouseWorkspace } from "./mouse-workspace";
 import { KeyboardEditor } from "./keyboard-editor";
 import { NativeInputPanel, type inputApi } from "./native-input-panel";
@@ -12,16 +13,16 @@ import { ProfileName } from "./profile-name";
 import { profileApi } from "./profile-api";
 import { configWithBindings } from "./mouse-bindings";
 import { watchInventory, type DetectedDevice, type InventoryState } from "./devices";
-import { layouts, withDevice, type ConfiguredDevice } from "./configured-devices";
+import { layouts, withDevice, withoutDevice, type ConfiguredDevice } from "./configured-devices";
 import { useWorkspaceNavigation } from "./workspace-navigation";
 import type { Config, Profile } from "./profiles";
 import type { DaemonConnection } from "./daemon-status";
 
 type Editor = { profile: Profile; revision: number; device?: ConfiguredDevice };
-export function HomePanel({ config, native, daemon, active, onConfigChange, onSaved, read, api = profileApi, onManageDevices, inputApis }: {
+export function HomePanel({ config, native, daemon, active, onConfigChange, onSaved, read, api = profileApi, inputApis }: {
   config: Config | null | undefined; native: boolean; daemon: DaemonConnection; active: boolean;
   onConfigChange: (config: Config) => void; onSaved: () => void; read: () => Promise<DetectedDevice[]>; api?: typeof profileApi;
-  onManageDevices?: () => void; inputApis?: { mouse: typeof inputApi; keyboard: typeof inputApi };
+  inputApis?: { mouse: typeof inputApi; keyboard: typeof inputApi };
 }) {
   const [selectedId, setSelectedId] = useState("");
   const [inventory, setInventory] = useState<InventoryState>({ phase: "idle" });
@@ -30,6 +31,8 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
   const [draft, setDraft] = useState({ dirty: false, busy: false });
   const [pending, setPending] = useState<(() => void) | null>(null);
   const [adding, setAdding] = useState(false);
+  const [editingDevice, setEditingDevice] = useState<ConfiguredDevice | null>(null);
+  const [editorVersion, setEditorVersion] = useState(0);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const trigger = useRef<HTMLElement | null>(null), heading = useRef<HTMLHeadingElement>(null);
@@ -62,7 +65,7 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
     if (draft.dirty) setPending(() => proceed); else proceed();
   }
   function closeEditor() {
-    const selector = editor?.device ? `button[aria-label="Configurar ${CSS.escape(editor.device.name)}"]` : "[data-general-mouse]";
+    const selector = editor?.device ? `button[aria-label="Abrir remapeamento de ${CSS.escape(editor.device.name)}"]` : "[data-general-mouse]";
     setEditor(null); setDraft({ dirty: false, busy: false }); setMessage("");
     queueMicrotask(() => document.querySelector<HTMLButtonElement>(selector)?.focus());
   }
@@ -80,8 +83,31 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
     setMessage("Ações salvas neste perfil. O estado do remapeamento foi mantido.");
     return saved;
   }
-  const remapping = (device: ConfiguredDevice, configure?: () => void) => <NativeInputPanel
-    device={device} kind={device.kind} configure={configure} native={native} connected={connected} focused={connected && daemon.status.focus_state === "focused"}
+  function configureDevice(device: ConfiguredDevice) {
+    leave(() => {
+      setDraft({ dirty: false, busy: false });
+      setEditorVersion(n => n + 1);
+      setEditingDevice(device);
+    });
+  }
+  const deviceSettings = editingDevice && config && <DeviceForm device={editingDevice} inventory={devices} refreshInventory={native && connected ? read : undefined}
+    close={() => setEditingDevice(null)} save={async (device, snapshot) => {
+      const saved = await api.save(withDevice(config, device, snapshot ?? devices), config.revision);
+      onConfigChange(saved); onSaved();
+      setEditor(current => current && { ...current, device: saved.devices?.find(d => d.id === device.id),
+        profile: structuredClone(saved.profiles.find(p => p.id === current.profile.id)!), revision: saved.revision });
+      setEditorVersion(n => n + 1);
+      setMessage(`Configurações de “${device.name.trim()}” salvas.`);
+    }} remove={async () => {
+      const saved = await api.save(withoutDevice(config, editingDevice), config.revision);
+      onConfigChange(saved); onSaved();
+      if (editor?.device?.id === editingDevice.id) closeEditor();
+      setMessage(`Dispositivo “${editingDevice.name}” removido.`);
+    }} />;
+  const remapping = (device: ConfiguredDevice, showSettings = false) => <NativeInputPanel
+    device={device} kind={device.kind} actions={showSettings && <button type="button" className="secondary-button device-settings-button" disabled={!native || !config}
+      onClick={() => configureDevice(device)} aria-label={`Configurações de ${device.name}`} title="Configurações do dispositivo"><AppIcon name="gear" /></button>}
+    native={native} connected={connected} focused={connected && daemon.status.focus_state === "focused"}
     version={connected ? daemon.status.revision : ""} simulation={simulation} config={config} api={inputApis?.[device.kind]}
     available={inventory.phase !== "ready" || !!connectedInterface(device, devices)} />;
   const confirmNavigation = pending && <Modal title="Alterações não salvas" compact onDismiss={() => setPending(null)} initialFocus="[data-keep-editing]">
@@ -92,7 +118,10 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
   if (editor) return <div className="device-editor-page">
     <button className="editor-back" type="button" disabled={draft.busy} onClick={() => leave(closeEditor)}>← Dispositivos</button>
     <div className="editor-page-heading"><div><h2 ref={heading} tabIndex={-1}>{editor.device?.name ?? "Ações gerais do mouse"}</h2><p>{editor.device?.kind === "keyboard" ? layouts[editor.device.layout!] : `${editor.device?.button_count ?? 5} botões · mouse`}</p></div>
-      {editor.device && remapping(editor.device)}
+      {editor.device && <div className="editor-device-options">
+        <button type="button" className="secondary-button" disabled={!native || !config || draft.busy} onClick={() => configureDevice(editor.device!)}><AppIcon name="settings" />Configurações do dispositivo</button>
+        {remapping(editor.device)}
+      </div>}
     </div>
     <div className="editor-profile-context"><div><label htmlFor="editing-profile">Perfil em edição</label><AppSelect id="editing-profile" value={editor.profile.id} disabled={draft.busy || !config} onValueChange={value => {
       const id = value;
@@ -100,8 +129,9 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
     }}>{config?.profiles.map(p => <option key={p.id} value={p.id}>{p.name}{p.enabled ? "" : " (desativado)"}</option>)}</AppSelect></div>
       <div className="editor-live-profile"><small>Perfil em uso</small><strong>{connected ? <ProfileName id={daemon.status.active_profile_id} config={config} /> : "Serviço indisponível"}</strong></div></div>
     {message && <p className="editor-saved-message" role="status">{message}</p>}
-    {editor.device?.kind === "keyboard" ? <KeyboardEditor key={`${editor.device.id}:${editor.profile.id}`} inline profile={editor.profile} revision={editor.revision} device={editor.device} save={persist} close={closeEditor} restoreFocus={trigger} onDirtyChange={onDirtyChange} />
-      : <MouseWorkspace key={`${editor.device?.id ?? "general"}:${editor.profile.id}`} profile={editor.profile} revision={editor.revision} device={editor.device} save={persist} onDirtyChange={onDirtyChange} />}
+    {editor.device?.kind === "keyboard" ? <KeyboardEditor key={`${editor.device.id}:${editor.profile.id}:${editorVersion}`} inline profile={editor.profile} revision={editor.revision} device={editor.device} save={persist} close={closeEditor} restoreFocus={trigger} onDirtyChange={onDirtyChange} />
+      : <MouseWorkspace key={`${editor.device?.id ?? "general"}:${editor.profile.id}:${editorVersion}`} profile={editor.profile} revision={editor.revision} device={editor.device} save={persist} onDirtyChange={onDirtyChange} />}
+    {deviceSettings}
     {confirmNavigation}
   </div>;
   return <section className="home-panel" aria-labelledby="home-heading">
@@ -111,20 +141,21 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
     <div className="device-showcase device-overview">
       {(config?.devices ?? []).map(device => <article key={device.id} className="device-card device-overview-card" aria-label={device.name}>
         <div className="device-card-top"><span>{device.kind === "mouse" ? "MOUSE" : "TECLADO"}</span><DeviceBattery device={connectedInterface(device, devices)} /></div>
-        <button className="device-art-button" type="button" disabled={!profile} aria-label={`Abrir configuração de ${device.name}`} onClick={() => open(device)}><span className="device-card-art">{device.kind === "mouse" ? <MouseArt /> : <KeyboardArt />}</span></button>
+        <button className="device-art-button" type="button" disabled={!profile} aria-label={`Abrir remapeamento de ${device.name}`} onClick={() => open(device)}><span className="device-card-art">{device.kind === "mouse" ? <MouseArt /> : <KeyboardArt />}</span></button>
         <h3 className="device-card-name">{device.name}</h3><span className="device-card-caption">{device.kind === "mouse" ? `${device.button_count} botões` : layouts[device.layout!]}</span>
         <span className="device-card-caption">{inventory.phase !== "ready" ? "Conexão não verificada" : !!connectedInterface(device, devices) ? "Conectado" : "Desconectado"}</span>
-        {remapping(device, profile ? () => open(device) : undefined)}
+        {remapping(device, true)}
       </article>)}
     </div>
     {!config?.devices?.length && <p className="hint">Adicione seu mouse ou teclado para começar.</p>}
     <div className="device-overview-footer"><small>Perfil em uso: <strong>{connected ? <ProfileName id={daemon.status.active_profile_id} config={config} /> : "—"}</strong> · A seleção acompanha a janela em foco.</small></div>
     <details className="device-overview-options"><summary>Opções dos dispositivos</summary><div className="button-row">
       <button type="button" data-general-mouse className="secondary-button" disabled={!profile} onClick={() => open()}>Ações gerais do mouse</button>
-      {onManageDevices && <button type="button" className="secondary-button" onClick={onManageDevices}>Gerenciar dispositivos e interfaces</button>}
       <button type="button" className="secondary-button" disabled={!native || !connected || inventory.phase === "loading"} onClick={() => setRefresh(n => n + 1)}>Atualizar dispositivos</button>
     </div></details>
     {inventory.phase === "error" && <p role="alert">{inventory.message}</p>}{error && <p role="alert">{error}</p>}
+    {message && <p role="status">{message}</p>}
+    {deviceSettings}
     {adding && config && <DeviceForm refreshInventory={read} inventory={devices} close={() => setAdding(false)} save={async (device, snapshot) => { const saved = await api.save(withDevice(config, device, snapshot ?? devices), config.revision); onConfigChange(saved); onSaved(); }} />}
   </section>;
 }

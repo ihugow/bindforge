@@ -4,8 +4,9 @@ import { DeviceAccessButton } from "./device-access-panel";
 import { Modal } from "./modal";
 import { compatible, connectionsOf, layouts, type Connection, type ConfiguredDevice } from "./configured-devices";
 import type { DetectedDevice } from "./devices";
-export function DeviceForm({ device, inventory, refreshInventory, save, close }: {
+export function DeviceForm({ device, inventory, refreshInventory, save, close, remove }: {
   device?: ConfiguredDevice; inventory: DetectedDevice[]; refreshInventory?: () => Promise<DetectedDevice[]>; save: (device: ConfiguredDevice, inventory?: DetectedDevice[]) => Promise<void>; close: () => void;
+  remove?: () => Promise<void>;
 }) {
   const [id] = useState(() => device?.id ?? `device-${crypto.randomUUID()}`);
   const [name, setName] = useState(device?.name ?? "");
@@ -20,6 +21,7 @@ export function DeviceForm({ device, inventory, refreshInventory, save, close }:
   const [busy, setBusy] = useState(false);
   const [freshInventory, setFreshInventory] = useState<DetectedDevice[] | null>(null);
   const [error, setError] = useState("");
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const currentInventory = freshInventory ?? inventory;
   const available = currentInventory.filter(d => compatible(d, kind));
   const fingerprintOf = (d: DetectedDevice) => kind === "mouse" ? d.mouse_fingerprint : d.keyboard_fingerprint;
@@ -46,7 +48,7 @@ export function DeviceForm({ device, inventory, refreshInventory, save, close }:
     setConnections(editing ? connections.map(c => c.interface_id === editingConnection ? connection : c) : [connection, ...connections]);
     resetConnectionEditor();
   }
-  return <Modal title={device ? "Editar dispositivo" : "Configurar novo dispositivo"} onDismiss={close} busy={busy} initialFocus="#device-name">
+  return <Modal title={device ? "Configurações do dispositivo" : "Configurar novo dispositivo"} onDismiss={close} busy={busy} initialFocus="#device-name">
     <form onSubmit={async e => {
       e.preventDefault(); setError("");
       if (editingConnection || connections.length && interfaceId) { setError("Conclua ou cancele a edição da conexão antes de salvar o dispositivo."); return; }
@@ -114,5 +116,18 @@ export function DeviceForm({ device, inventory, refreshInventory, save, close }:
       <div className="button-row modal-actions"><button type="button" disabled={busy} onClick={close}>Cancelar</button><button type="submit" disabled={busy}>{busy ? "Salvando…" : "Salvar dispositivo"}</button></div>
     </form>
     {device && <div className="device-access-entry"><h3>Acesso para remapeamento</h3><DeviceAccessButton device={device} disabled={busy} /><p className="hint">Autorize cada conexão salva que será usada para remapear.</p></div>}
+    {device && remove && <div className="device-access-entry"><h3>Remover dispositivo</h3><p className="hint">Remove o cadastro, suas conexões e as ações específicas deste dispositivo em todos os perfis.</p>
+      <button type="button" className="danger-button" disabled={busy} onClick={() => { setError(""); setConfirmRemove(true); }}>Remover dispositivo</button>
+    </div>}
+    {confirmRemove && <Modal title={`Remover ${device!.name}?`} compact busy={busy} initialFocus="[data-cancel-removal]" onDismiss={() => setConfirmRemove(false)}>
+      <p>O cadastro, as conexões e as ações específicas deste dispositivo serão removidos de todos os perfis. As ações gerais e os outros dispositivos serão mantidos.</p>
+      {error && <p role="alert">{error}</p>}
+      <div className="button-row modal-actions"><button type="button" data-cancel-removal disabled={busy} onClick={() => setConfirmRemove(false)}>Cancelar</button>
+        <button type="button" className="danger-button" disabled={busy} onClick={async () => {
+          setBusy(true); setError("");
+          try { await remove!(); close(); } catch (e) { setError(String(e)); } finally { setBusy(false); }
+        }}>{busy ? "Removendo…" : "Confirmar remoção"}</button>
+      </div>
+    </Modal>}
   </Modal>;
 }

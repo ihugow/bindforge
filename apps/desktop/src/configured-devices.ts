@@ -18,6 +18,13 @@ export function connectedInterface(device: ConfiguredDevice, inventory: Detected
 }
 export const layouts = { abnt2: "Português brasileiro · ABNT2", ansi: "ANSI · padrão americano", iso: "ISO · padrão europeu" };
 export function compatible(device: DetectedDevice, kind: ConfiguredDevice["kind"]) { return device.kind === kind || device.kind === "composite"; }
+export function withoutDevice(config: Config, device: ConfiguredDevice): Config {
+  const scopes = new Set([`device:${device.id}`, device.interface_id, ...connectionsOf(device).map(c => c.interface_id)]);
+  return { ...config, devices: (config.devices ?? []).filter(d => d.id !== device.id), profiles: config.profiles.map(profile => ({
+    ...profile, bindings: profile.bindings.filter(binding => !(binding.device_id && scopes.has(binding.device_id) &&
+      (device.kind === "mouse" ? "MouseButton" in binding.input : "Key" in binding.input))),
+  })) };
+}
 export function withDevice(config: Config, device: ConfiguredDevice, inventory: DetectedDevice[]): Config {
   const name = device.name.trim();
   if (!name || new TextEncoder().encode(name).length > 128 || /[\x00-\x1f\x7f-\x9f]/.test(name)) throw new Error("Informe um nome de até 128 bytes, sem caracteres de controle.");

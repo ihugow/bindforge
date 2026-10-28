@@ -1,10 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { withDevice, bindingScope, connectedInterface } from './configured-devices.ts';
+import { withDevice, withoutDevice, bindingScope, connectedInterface } from './configured-devices.ts';
 import { mouseControls } from './mouse-bindings.ts';
 const mouse = { id: 'custom', name: ' G PRO ', kind: 'mouse', interface_id: 'usb-a', button_count: 5, layout: null };
 const detected = [{ id: 'usb-a', kind: 'mouse' }, { id: 'usb-b', kind: 'composite' }, { id: 'keyboard', kind: 'keyboard' }];
 const config = { version: 1, revision: 2, fallback_id: 'default', profiles: [{ id: 'default', name: 'Padrão', bindings: [] }] };
+test('removing a device clears its scoped and legacy actions while preserving shared-interface keyboards and general actions', () => {
+  const bindings = [
+    { device_id: 'device:custom', input: { MouseButton: 8 }, action: 'Disabled' },
+    { device_id: 'usb-a', input: { MouseButton: 9 }, action: 'Disabled' },
+    { device_id: 'usb-a', input: { Key: 'A' }, action: 'Disabled' },
+    { device_id: null, input: { MouseButton: 8 }, action: 'Disabled' },
+    { device_id: 'device:other', input: { MouseButton: 8 }, action: 'Disabled' },
+  ];
+  const keyboard = { id: 'keys', kind: 'keyboard', interface_id: 'usb-a' };
+  const base = { ...config, devices: [mouse, keyboard], profiles: [
+    { ...config.profiles[0], bindings }, { id: 'second', bindings },
+  ] };
+  const next = withoutDevice(base, mouse);
+  assert.deepEqual(next.devices, [keyboard]);
+  for (const profile of next.profiles) assert.deepEqual(profile.bindings, bindings.slice(2));
+  assert.equal(base.devices.length, 2);
+  assert.equal(base.profiles[0].bindings.length, 5);
+  assert.deepEqual(withoutDevice(base, keyboard).profiles[0].bindings, bindings.filter(b => !('Key' in b.input)));
+});
 test('registration preserves profiles and validates interface, count, layout and duplicates', () => {
   const next = withDevice(config, mouse, detected);
   assert.equal(next.devices[0].name, 'G PRO');
