@@ -91,8 +91,12 @@ Use IDs de aplicativos instalados na sua máquina nesse comando.
 
 ## Capas da Steam
 
-Os cartões dos perfis exibem capas verticais na proporção 2:3, com nome,
-estado e ações abaixo da arte. Perfis com uma associação exata `steam:ID`
+Os cartões dos perfis exibem somente a capa vertical na proporção 2:3,
+preenchendo toda a área. Sem capa, exibem apenas o ícone e o nome do perfil.
+Clique em qualquer parte do cartão para abrir as configurações do perfil;
+a navegação por teclado também permite abrir com Enter ou Espaço. Um brilho
+acompanha o cursor ao passar sobre o cartão. A opção de movimento reduzido
+desativa a elevação animada. Perfis com uma associação exata `steam:ID`
 usam automaticamente a capa da biblioteca local da Steam. O cache é consultado
 nas instalações nativa e Flatpak, incluindo arquivos antigos e diretórios por
 jogo/hash (`library_600x900` e `library_capsule`). A prévia também aparece no

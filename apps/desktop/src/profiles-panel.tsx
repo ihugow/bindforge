@@ -7,7 +7,7 @@ import { profileApi as nativeApi } from "./profile-api";
 import { ProfileIcon, readProfileIcon } from "./profile-icon";
 import { ApplicationIconPicker } from "./application-icon-picker";
 import type { FindApplicationIcons } from "./application-icons";
-import { AppIcon } from "./app-icon";
+import { ProfileCard } from "./profile-card";
 import { Modal } from "./modal";
 import { WindowCapturePanel } from "./window-capture-panel";
 import type { CaptureStart } from "./window-capture";
@@ -123,14 +123,9 @@ export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, cap
     {!native && <p>Abra o aplicativo nativo para criar e salvar perfis.</p>}
     {native && !config && !error && <p role="status">Carregando perfis…</p>}
     {config && <><p className="hint">O perfil Padrão é usado quando nenhum aplicativo corresponde. Cada perfil tem suas próprias ações, sem herança automática.</p>
-      <ul className="profile-list">{config.profiles.map(p => <li key={p.id} className="profile-card">
-        <ProfileCover image={p.id === config.fallback_id ? undefined : coverFor(p.rules, covers)} icon={p.icon} />
-        <div className="profile-card-header"><span className="status-chip" data-state={p.enabled ? "active" : "paused"}>{p.id === config.fallback_id ? "Padrão" : p.enabled ? "Habilitado" : "Desativado"}</span></div>
-        <div className="profile-card-details"><h3>{p.name}</h3><p>{p.id === config.fallback_id ? "Todos os demais aplicativos" : p.rules.map(r => r.app_id ?? "Regra avançada").join(", ")}</p></div>
-        <div className="profile-card-footer"><p className="profile-card-meta">{p.bindings.length} ação(ões) · prioridade {p.priority}</p>
-          <button type="button" className="secondary-button profile-edit-button" aria-label={`Editar perfil ${p.name}`} title={`Editar perfil ${p.name}`}
-            disabled={busy || !!draft || !!deleteId} onClick={() => edit(p)}><AppIcon name="edit" /></button>
-        </div>
+      <ul className="profile-list">{config.profiles.map(p => <li key={p.id}>
+        <ProfileCard profile={p} image={p.id === config.fallback_id ? undefined : coverFor(p.rules, covers)}
+          disabled={busy || !!draft || !!deleteId} onEdit={() => edit(p)} />
       </li>)}</ul></>}
     {active && draft && config && <Modal title={draft.id ? "Editar perfil" : "Criar perfil"} busy={busy || iconLoading || iconSearching || !!deleteId} initialFocus="#profile-name" restoreFocus={editorTrigger}
       onDismiss={() => { setDraft(null); setCaptureOpen(false); setError(""); }}>
