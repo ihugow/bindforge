@@ -1,3 +1,6 @@
+import { invoke } from "@tauri-apps/api/core";
+import { ProfileCover } from "./profile-cover";
+import { steamApps, coverFor, type FindSteamCovers, type SteamCover } from "./steam-covers";
 import { AppSelect } from "./app-select";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { profileApi as nativeApi } from "./profile-api";
@@ -10,8 +13,10 @@ import { WindowCapturePanel } from "./window-capture-panel";
 import type { CaptureStart } from "./window-capture";
 import { appIds, conflictingProfiles, removeProfile, updateProfile, type Config, type Draft, type Profile } from "./profiles";
 
-export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, captureStart, onConfigChange, active = true, currentConfig, findIcons }: {
-  findIcons?: FindApplicationIcons;
+const findLocalCovers: FindSteamCovers = appIds => invoke("find_steam_covers", { appIds });
+
+export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, captureStart, onConfigChange, active = true, currentConfig, findIcons, findCovers = findLocalCovers }: {
+  findIcons?: FindApplicationIcons; findCovers?: FindSteamCovers;
   currentConfig?: Config | null; active?: boolean; native: boolean; connected: boolean; onSaved: () => void; api?: typeof nativeApi; captureStart?: CaptureStart; onConfigChange?: (config: Config | null) => void;
 }) {
   const editorTrigger = useRef<HTMLElement | null>(null);
@@ -20,6 +25,26 @@ export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, cap
   const [config, setConfig] = useState<Config | null>(null);
   useEffect(() => { if (currentConfig) setConfig(currentConfig); }, [currentConfig]);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [coverRefresh, setCoverRefresh] = useState(0);
+  const [covers, setCovers] = useState<SteamCover[]>([]);
+  const coverIds = JSON.stringify(steamApps([
+    ...(config?.profiles.flatMap(profile => profile.id === config.fallback_id ? [] : profile.rules) ?? []),
+    ...appIds(draft?.apps ?? "").map(app_id => ({ app_id })),
+  ]));
+  useEffect(() => {
+    if (!active) return;
+    let current = true;
+    const ids: string[] = JSON.parse(coverIds);
+    if (!ids.length) { setCovers([]); return; }
+    // Batch IPC requests and ignore responses from an obsolete association/editor.
+    const timer = setTimeout(() => {
+      const batches = Array.from({ length: Math.ceil(ids.length / 256) }, (_, i) => ids.slice(i * 256, (i + 1) * 256));
+      Promise.all(batches.map(ids => findCovers(ids))).then(results => {
+        if (current) setCovers(results.flat());
+      }).catch(() => { if (current) setCovers([]); });
+    }, 150);
+    return () => { current = false; clearTimeout(timer); };
+  }, [coverIds, findCovers, active, coverRefresh]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [capturePending, setCapturePending] = useState(false);
@@ -43,7 +68,7 @@ export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, cap
   }, [native, api, onConfigChange]);
   async function reload() {
     setBusy(true); setError(""); setMessage("");
-    try { const loaded = await api.load(); setConfig(loaded); onConfigChange?.(loaded); setDraft(null); }
+    try { const loaded = await api.load(); setConfig(loaded); onConfigChange?.(loaded); setDraft(null); setCoverRefresh(n => n + 1); }
     catch (e) { setError(String(e)); } finally { setBusy(false); }
   }
   function edit(profile?: Profile) {
@@ -99,7 +124,8 @@ export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, cap
     {native && !config && !error && <p role="status">Carregando perfis…</p>}
     {config && <><p className="hint">O perfil Padrão é usado quando nenhum aplicativo corresponde. Cada perfil tem suas próprias ações, sem herança automática.</p>
       <ul className="profile-list">{config.profiles.map(p => <li key={p.id} className="profile-card">
-        <div className="profile-card-header"><ProfileIcon icon={p.icon} /><span className="status-chip" data-state={p.enabled ? "active" : "paused"}>{p.id === config.fallback_id ? "Padrão" : p.enabled ? "Habilitado" : "Desativado"}</span></div>
+        <ProfileCover image={p.id === config.fallback_id ? undefined : coverFor(p.rules, covers)} icon={p.icon} />
+        <div className="profile-card-header"><span className="status-chip" data-state={p.enabled ? "active" : "paused"}>{p.id === config.fallback_id ? "Padrão" : p.enabled ? "Habilitado" : "Desativado"}</span></div>
         <div className="profile-card-details"><h3>{p.name}</h3><p>{p.id === config.fallback_id ? "Todos os demais aplicativos" : p.rules.map(r => r.app_id ?? "Regra avançada").join(", ")}</p></div>
         <div className="profile-card-footer"><p className="profile-card-meta">{p.bindings.length} ação(ões) · prioridade {p.priority}</p>
           <button type="button" className="secondary-button profile-edit-button" aria-label={`Editar perfil ${p.name}`} title={`Editar perfil ${p.name}`}
@@ -112,6 +138,10 @@ export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, cap
       <fieldset disabled={busy || iconLoading || iconSearching || !!deleteId}>
         <label htmlFor="profile-name">Nome do perfil</label>
         <input id="profile-name" autoFocus required maxLength={128} value={draft.name} onChange={e => patch({ name: e.target.value })} />
+        {!fallback && steamApps(appIds(draft.apps).map(app_id => ({ app_id }))).length > 0 && <div className="profile-cover-editor">
+          <ProfileCover image={coverFor(appIds(draft.apps).map(app_id => ({ app_id })), covers)} icon={draft.icon} />
+          <div><strong>Capa da Steam</strong><p className="hint">Usamos automaticamente a capa disponível na biblioteca local da Steam. Sem capa, exibimos o ícone do perfil.</p></div>
+        </div>}
         <div className="profile-icon-editor"><ProfileIcon icon={draft.icon} /><div>
           <label htmlFor="profile-icon-file">Ícone do perfil</label>
           <input id="profile-icon-file" type="file" accept="image/png,image/jpeg,image/webp,image/x-icon,image/vnd.microsoft.icon,.ico" aria-describedby="profile-icon-hint" onChange={chooseIcon} />

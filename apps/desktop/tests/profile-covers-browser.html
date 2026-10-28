@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BindForge — capas dos perfis</title><body><main class="app-root" id="root"></main>
+<script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { ProfilesPanel } from '../src/profiles-panel.tsx';
+import { WorkspaceTabs } from '../src/workspace-tabs.tsx';
+import '../src/style.css';
+function sample(title, color) {
+  const canvas = document.createElement('canvas'); canvas.width = 600; canvas.height = 900;
+  const ctx = canvas.getContext('2d'); const gradient = ctx.createLinearGradient(0, 0, 600, 900);
+  gradient.addColorStop(0, color); gradient.addColorStop(1, '#151020');
+  ctx.fillStyle = gradient; ctx.fillRect(0, 0, 600, 900);
+  ctx.strokeStyle = '#ffffff22'; ctx.lineWidth = 35;
+  ctx.beginPath(); ctx.moveTo(50, 0); ctx.lineTo(550, 900); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 48px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(title, 300, 750);
+  return canvas.toDataURL('image/jpeg');
+}
+const demos = [
+  { app_id: 'steam:1808500', image: sample('ARC RAIDERS', '#85404d') },
+  { app_id: 'steam:730', image: sample('COUNTER-STRIKE 2', '#d08513') },
+];
+const installed = new URLSearchParams(location.search).has('installed');
+const images = installed ? await fetch('./profile-covers.local.json').then(r => r.json()) : demos;
+let config = { version: 1, revision: 0, fallback_id: 'default', profiles: [
+  { id: 'default', name: 'Padrão', enabled: true, priority: 0, rules: [], bindings: [] },
+  ...[
+    ['arc', 'ARC Raiders', ['steam:1808500'], true],
+    ['cs2', 'Counter-Strike 2', ['steam:730'], true],
+    ['missing', 'Jogo sem capa', ['steam:999999'], true],
+    ['multi', 'FPS · alternativo', ['steam:999999', 'steam:730'], false],
+    ['firefox', 'Navegação', ['firefox'], true],
+  ].map(([id, name, apps, enabled]) => ({ id, name, enabled, priority: 10, bindings: [], rules: apps.map(app_id => ({ app_id, executable: null, title_contains: null })) })),
+] };
+const api = {
+  load: async () => structuredClone(config),
+  save: async (next, revision) => {
+    if (revision !== config.revision) throw new Error('Conflito de revisão.');
+    config = structuredClone({ ...next, revision: revision + 1 }); return structuredClone(config);
+  },
+};
+const findCovers = async ids => images.filter(cover => ids.includes(cover.app_id));
+function Fixture() {
+  const [currentConfig, setConfig] = React.useState(config);
+  return React.createElement(WorkspaceTabs, {
+    status: 'Teste local · capas dos perfis', devices: null,
+    profiles: active => React.createElement(ProfilesPanel, { native: true, connected: true, active, currentConfig, onConfigChange: setConfig,
+      onSaved: () => {}, api, findCovers, findIcons: async () => [] }),
+  });
+}
+createRoot(document.getElementById('root')).render(React.createElement(Fixture));
+</script></body></html>

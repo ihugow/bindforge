@@ -91,8 +91,16 @@ output span { display: block; } li { margin-block: 6px; } code { overflow-wrap: 
 .button-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .profiles-panel { margin-top: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
 .profiles-panel > .section-heading h2 { font-size: 2rem; }
-.profile-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); max-width: 1200px; gap: 18px; list-style: none; padding: 0; margin: 24px 0 0; }
-.profile-list .profile-card { display: flex; flex-direction: column; align-items: stretch; min-width: 0; max-width: 400px; gap: 18px; margin: 0; padding: 22px; border: 1px solid var(--border); border-radius: var(--radius); background: radial-gradient(ellipse at 0 0, #a578f518, transparent 70%), var(--surface-soft); box-shadow: inset 0 1px var(--glass-highlight), 0 8px 24px var(--shadow-soft); }
+.profile-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); max-width: 1200px; gap: 18px; list-style: none; padding: 0; margin: 24px 0 0; }
+.profile-list .profile-card { display: flex; flex-direction: column; align-items: stretch; min-width: 0; gap: 14px; margin: 0; padding: 0 16px 16px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); background: radial-gradient(ellipse at 0 0, #a578f518, transparent 70%), var(--surface-soft); box-shadow: inset 0 1px var(--glass-highlight), 0 8px 24px var(--shadow-soft); }
+.profile-cover { position: relative; flex-shrink: 0; aspect-ratio: 2 / 3; overflow: hidden; background: radial-gradient(ellipse at 25% 15%, #a679f530, transparent 65%), linear-gradient(145deg, var(--surface-soft), var(--canvas)); }
+.profile-card > .profile-cover { margin: 0 -16px; }
+.profile-cover-placeholder { position: absolute; inset: 0; display: grid; place-items: center; background: repeating-linear-gradient(135deg, transparent 0 32px, #a679f506 32px 33px); }
+.profile-cover-image { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; }
+.profile-cover-editor { display: flex; align-items: center; gap: 16px; margin-top: 20px; }
+.profile-cover-editor > .profile-cover { width: 96px; border: 1px solid var(--border); border-radius: 8px; }
+.profile-cover-editor > div:last-child { min-width: 0; }
+.profile-cover-editor .profile-icon { width: 56px; height: 56px; }
 .profile-card-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .profile-card .profile-icon { --profile-icon-radius: 20px; width: 76px; height: 76px; }
 .profile-card .profile-icon .app-icon { width: 38px; height: 38px; }

@@ -89,6 +89,34 @@ BINDFORGE_ICON_TEST_IDS='org.kde.konsole,steam:1808500' \
 
 Use IDs de aplicativos instalados na sua máquina nesse comando.
 
+## Capas da Steam
+
+Os cartões dos perfis exibem capas verticais na proporção 2:3, com nome,
+estado e ações abaixo da arte. Perfis com uma associação exata `steam:ID`
+usam automaticamente a capa da biblioteca local da Steam. O cache é consultado
+nas instalações nativa e Flatpak, incluindo arquivos antigos e diretórios por
+jogo/hash (`library_600x900` e `library_capsule`). A prévia também aparece no
+editor ao associar ou detectar um jogo. Com vários jogos associados, usamos a
+primeira associação com capa disponível.
+
+A busca é local e não exige internet, chave de API nem alteração no JSON de
+configuração. Não inferimos jogos pelo nome do perfil ou pela associação genérica
+`gamescope`. Perfis antigos associados somente a um executável precisam da
+identidade `steam:ID` do jogo para obter a capa. O perfil Padrão, aplicativos comuns,
+imagens ausentes ou inválidas usam o ícone personalizado ou o símbolo padrão.
+O ícone continua independente da capa. Se a Steam ainda não tiver baixado a
+arte, abra sua biblioteca e use **Recarregar lista** no BindForge para consultar
+novamente o cache.
+
+A fixture `apps/desktop/tests/profile-covers-browser.html` demonstra capas,
+ausência de arte e perfis com múltiplos jogos. Para verificar com capas reais:
+
+```bash
+BINDFORGE_COVER_TEST_IDS='steam:1808500,steam:730' \
+  cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml \
+  steam_covers::tests::installed_steam_covers -- --ignored
+```
+
 ## Armazenamento
 
 - Linux: `$XDG_CONFIG_HOME/bindforge/profiles.json`, com fallback para

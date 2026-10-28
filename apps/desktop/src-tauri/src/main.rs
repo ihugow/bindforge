@@ -11,6 +11,23 @@ mod device_access;
 
 #[cfg(target_os = "linux")]
 mod application_icons;
+#[cfg(target_os = "linux")]
+mod steam_covers;
+
+#[tauri::command]
+async fn find_steam_covers(app_ids: Vec<String>, window: tauri::WebviewWindow) -> Result<Vec<steam_cover_types::SteamCover>, String> {
+    if window.label() != "main" { return Err("Unsupported window".into()); }
+    #[cfg(target_os = "linux")]
+    { tauri::async_runtime::spawn_blocking(move || steam_covers::find(app_ids)).await.map_err(|e| e.to_string())? }
+    #[cfg(not(target_os = "linux"))]
+    { let _ = app_ids; Ok(vec![]) }
+}
+mod steam_cover_types {
+    #[cfg(target_os = "linux")]
+    pub use super::steam_covers::SteamCover;
+    #[cfg(not(target_os = "linux"))]
+    #[derive(serde::Serialize)] pub struct SteamCover {}
+}
 
 #[tauri::command]
 async fn find_application_icons(app_ids: Vec<String>, window: tauri::WebviewWindow) -> Result<Vec<application_icon_types::ApplicationIcon>, String> {
@@ -468,6 +485,6 @@ fn main() {
             }
         }
     });
-    builder.invoke_handler(tauri::generate_handler![find_application_icons, get_daemon_service, control_daemon_service, get_device_access, configure_device_access, get_input_status, start_mouse, pause_mouse, get_keyboard_status, start_keyboard, pause_keyboard, get_kwin_integration, configure_kwin_integration, start_window_capture, stop_window_capture, load_profiles, save_profiles, export_configuration, inspect_backup, import_configuration, preview_profile, get_daemon_status, list_devices, start_daemon_status, stop_daemon_status])
+    builder.invoke_handler(tauri::generate_handler![find_steam_covers, find_application_icons, get_daemon_service, control_daemon_service, get_device_access, configure_device_access, get_input_status, start_mouse, pause_mouse, get_keyboard_status, start_keyboard, pause_keyboard, get_kwin_integration, configure_kwin_integration, start_window_capture, stop_window_capture, load_profiles, save_profiles, export_configuration, inspect_backup, import_configuration, preview_profile, get_daemon_status, list_devices, start_daemon_status, stop_daemon_status])
         .run(tauri::generate_context!()).expect("failed to start desktop shell");
 }

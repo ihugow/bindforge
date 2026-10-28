@@ -23,7 +23,7 @@ fn matches_app(app: &gio::DesktopAppInfo, id: &str) -> bool {
     app.id().is_some_and(|v| v.strip_suffix(".desktop").unwrap_or(&v).eq_ignore_ascii_case(id.strip_suffix(".desktop").unwrap_or(id)))
         || app.startup_wm_class().is_some_and(|v| v.eq_ignore_ascii_case(id))
 }
-fn steam_roots() -> Vec<PathBuf> {
+pub(crate) fn steam_roots() -> Vec<PathBuf> {
     let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else { return vec![]; };
     let data = std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).filter(|p| p.is_absolute()).unwrap_or_else(|| home.join(".local/share"));
     vec![data.join("Steam"), home.join(".steam/steam"), home.join(".steam/root"), home.join(".var/app/com.valvesoftware.Steam/data/Steam")]
