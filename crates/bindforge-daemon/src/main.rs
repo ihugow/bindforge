@@ -126,7 +126,10 @@ fn run_kde(once: bool) -> Result<(), String> {
             // Authenticate focus/owner changes before re-evaluating saved rules.
             let event = monitor.poll_event()?;
             if let Some(event) = &event {
-                input.focus(matches!(event, WindowEvent::Focused(_)));
+                match event {
+                    WindowEvent::Focused(_) => input.focus(true),
+                    WindowEvent::NoActiveWindow => input.no_active_window(),
+                }
                 last_event = event.clone();
                 focus = match event { WindowEvent::Focused(_) => FocusState::Focused, WindowEvent::NoActiveWindow => FocusState::NoActiveWindow };
             }

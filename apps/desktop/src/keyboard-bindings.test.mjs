@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { keyboardSections } from "./keyboard-layouts.ts";
+import { keyboardSections, keyboardKeyGroups } from "./keyboard-layouts.ts";
 import { keyboardBinding, setKeyboardBinding } from "./keyboard-bindings.ts";
 
 test("physical layouts preserve key identity and include their distinct keys and geometry", () => {
@@ -37,4 +37,19 @@ test("keyboard edits preserve mouse actions, general actions and other keyboards
   assert.equal(keyboardBinding(reset, "keyboard-a", "KEY_CAPSLOCK"), undefined);
   assert.equal(keyboardBinding(reset, "keyboard-a", "KEY_CAPSLOCK", true), general);
   assert.equal(keyboardBinding(reset, "keyboard-b", "KEY_CAPSLOCK", true), other);
+});
+
+test("destination key groups cover all layouts without missing or duplicating keys", () => {
+  for (const layout of ["ansi", "iso", "abnt2"]) {
+    const groups = keyboardKeyGroups(layout);
+    const original = keyboardSections(layout).flatMap(section => section.keys.map(key => key.code)).sort();
+    assert.deepEqual(groups.flatMap(group => group.keys.map(key => key.code)).sort(), original);
+    const codes = name => groups.find(group => group.name === name).keys.map(key => key.code);
+    assert.equal(codes("Letras").length, 26);
+    assert.equal(codes("Números").length, 10);
+    assert.equal(codes("Funções").length, 12);
+    assert.equal(codes("Modificadores").length, 8);
+    assert.ok(codes("Controles").includes("KEY_ENTER"));
+    assert.ok(codes("Teclado numérico").includes("KEY_KPENTER"));
+  }
 });

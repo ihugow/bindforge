@@ -1,3 +1,4 @@
+import { AppButton } from "./app-button";
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
@@ -83,7 +84,7 @@ function App() {
               <label htmlFor="app-id">ID do aplicativo</label>
               <input id="app-id" value={appId} maxLength={4096} onChange={e => { setAppId(e.target.value); setSelection(null); }} placeholder="Deixe vazio para simular ausência de foco" />
               <p className="hint">Exemplos: firefox, org.kde.konsole ou unknown.app.</p>
-              <button disabled={!native || busy} type="submit">{busy ? "Consultando…" : "Simular seleção"}</button>
+              <AppButton disabled={!native || busy} type="submit">{busy ? "Consultando…" : "Simular seleção"}</AppButton>
             </form>
             {error && <p role="alert">{error}</p>}
             {selection && <output aria-live="polite"><strong>{selection.name}</strong><span>{selection.bindings} ação(ões) · somente simulação</span></output>}

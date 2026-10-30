@@ -1,3 +1,4 @@
+import { AppButton } from "./app-button";
 import { useState } from "react";
 import { ProfileName } from "./profile-name";
 import type { Config } from "./profiles";
@@ -8,10 +9,10 @@ export function ProfileHistory({ status, config }: { status: DaemonStatus; confi
   return <div className="profile-history">
     <div className="section-heading">
       <h3>Últimas trocas de perfil</h3>
-      <button type="button" className="history-toggle" role="switch" aria-checked={visible}
+      <AppButton type="button" className="history-toggle" role="switch" aria-checked={visible}
         aria-controls="profile-history-content" aria-label="Exibir histórico das últimas trocas de perfil" onClick={() => setVisible(value => !value)}>
         <span className="toggle-track" aria-hidden="true"><span /></span>Exibir histórico
-      </button>
+      </AppButton>
     </div>
     <div id="profile-history-content" hidden={!visible}>
       <p className="hint">Ao voltar para esta janela, o perfil atual pode retornar a <strong><ProfileName id={config?.fallback_id ?? "default"} config={config} /></strong>. As trocas anteriores ficam registradas abaixo.</p>

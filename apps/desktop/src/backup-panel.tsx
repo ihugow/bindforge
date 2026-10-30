@@ -1,3 +1,4 @@
+import { AppButton } from "./app-button";
 import { useRef, useState, type ChangeEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Modal } from "./modal";
@@ -47,8 +48,8 @@ export function BackupPanel({ native, onRestored }: { native: boolean; onRestore
     <p>Exporte dispositivos, conexões, perfis, ícones, associações de aplicativos e todas as ações para um arquivo JSON.</p>
     <p className="hint">Após reinstalar, importe o backup e confira as conexões. Permissões de acesso e inicialização do serviço no KDE devem ser configuradas neste computador.</p>
     <div className="button-row">
-      <button type="button" disabled={!native || busy || !!preview} onClick={() => void exportBackup()}>Exportar configurações</button>
-      <button type="button" className="secondary-button" disabled={!native || busy || !!preview} onClick={() => input.current?.click()}>Importar configurações</button>
+      <AppButton type="button" disabled={!native || busy || !!preview} onClick={() => void exportBackup()}>Exportar configurações</AppButton>
+      <AppButton type="button" className="secondary-button" disabled={!native || busy || !!preview} onClick={() => input.current?.click()}>Importar configurações</AppButton>
       <input ref={input} type="file" accept=".json,application/json" hidden onChange={event => void inspect(event)} />
     </div>
     {!native && <p className="hint">Disponível no aplicativo nativo.</p>}
@@ -61,8 +62,8 @@ export function BackupPanel({ native, onRestored }: { native: boolean; onRestore
       <p className="hint">Se houver remapeamento ativo, as ações importadas poderão ser aplicadas pelo serviço.</p>
       {error && <p role="alert">{error}</p>}
       <div className="button-row modal-actions">
-        <button type="button" data-cancel-import disabled={busy} onClick={() => { setPreview(null); setError(""); }}>Cancelar</button>
-        <button type="button" className="danger-button" disabled={busy} onClick={() => void restore()}>{busy ? "Importando…" : "Substituir e importar"}</button>
+        <AppButton type="button" data-cancel-import disabled={busy} onClick={() => { setPreview(null); setError(""); }}>Cancelar</AppButton>
+        <AppButton type="button" className="danger-button" disabled={busy} onClick={() => void restore()}>{busy ? "Importando…" : "Substituir e importar"}</AppButton>
       </div>
     </Modal>}
   </section>;

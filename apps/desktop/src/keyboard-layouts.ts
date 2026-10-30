@@ -60,5 +60,21 @@ export function keyboardSections(layout: KeyboardLayout): KeyboardSection[] {
 export function keyName(key: KeyboardKey): string {
   const side = key.code.startsWith("KEY_LEFT") ? "esquerdo" : key.code.startsWith("KEY_RIGHT") ? "direito" : "";
   if (["Ctrl", "Shift", "Alt", "Super"].includes(key.label)) return `${key.label} ${side}`.trim();
-  return key.code.startsWith("KEY_KP") ? `${key.label} (numérico)` : key.label;
+  return /^KEY_KP[0-9]$/.test(key.code) ? `Num${key.label}` : key.label;
+}
+
+/** Group destination keys by purpose, preserving every physical key exactly once. */
+export function keyboardKeyGroups(layout: KeyboardLayout): { name: string; keys: KeyboardKey[] }[] {
+  const sections = keyboardSections(layout);
+  const categories = ["Letras", "Números", "Funções", "Modificadores", "Símbolos", "Controles", "Navegação", "Teclado numérico"];
+  const groups = categories.map(name => ({ name, keys: [] as KeyboardKey[] }));
+  for (const section of sections) for (const key of section.keys) {
+    const index = section.id === "keypad" ? 7 : section.id === "navigation" ? 6
+      : /^KEY_[A-Z]$/.test(key.code) ? 0 : /^KEY_[0-9]$/.test(key.code) ? 1
+      : /^KEY_F[0-9]+$/.test(key.code) ? 2
+      : /^KEY_(LEFT|RIGHT)(CTRL|SHIFT|ALT|META)$/.test(key.code) ? 3
+      : ["KEY_ESC", "KEY_TAB", "KEY_CAPSLOCK", "KEY_BACKSPACE", "KEY_ENTER", "KEY_SPACE", "KEY_COMPOSE"].includes(key.code) ? 5 : 4;
+    groups[index].keys.push(key);
+  }
+  return groups.filter(group => group.keys.length > 0);
 }

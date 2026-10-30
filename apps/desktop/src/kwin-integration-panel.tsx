@@ -1,3 +1,4 @@
+import { AppButton } from "./app-button";
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Modal } from "./modal";
@@ -36,7 +37,7 @@ export function KwinIntegrationPanel({ native, active, daemonState = "", api = i
       <span className="status-chip">{status && integrationReady(status) ? "Ativa" : "KWin"}</span></div>
     <p role="status">{!native ? "Disponível no aplicativo nativo, no KDE Plasma 6." : loading && !status ? "Verificando integração…" : status ? integrationSummary(status) : "Não foi possível verificar a integração."}</p>
     <p className="hint">A ponte permite detectar a janela em foco e trocar o perfil automaticamente.</p>
-    <button type="button" disabled={!native || busy} onClick={() => { trigger.current = document.activeElement as HTMLElement; setOpen(true); setRefresh(n => n + 1); }}>Ver integração com KDE</button>
+    <AppButton type="button" disabled={!native || busy} onClick={() => { trigger.current = document.activeElement as HTMLElement; setOpen(true); setRefresh(n => n + 1); }}>Ver integração com KDE</AppButton>
     {error && !open && <p role="alert">{error}</p>}
     {active && open && <Modal title="Ver integração com KDE" busy={busy} onDismiss={() => setOpen(false)} restoreFocus={trigger}>
       <p>O daemon carrega a ponte temporária ao iniciar e a descarrega ao encerrar. A conexão é recuperada automaticamente se o KWin reiniciar. Não é necessário instalar um script no KDE.</p>
@@ -56,9 +57,9 @@ export function KwinIntegrationPanel({ native, active, daemonState = "", api = i
       {status?.message && <p role="status">{status.message}</p>}
       {message && <p role="status">{message}</p>}{error && <p role="alert">{error}</p>}
       <div className="button-row modal-actions">
-        <button type="button" disabled={busy} onClick={() => setOpen(false)}>Fechar</button>
-        <button type="button" disabled={busy || loading} onClick={() => { setError(""); setRefresh(n => n + 1); }}>Verificar novamente</button>
-        <button type="button" disabled={busy || loading || !status?.kwin_available || !status?.daemon_connected} onClick={configure}>{busy ? "Reconectando…" : status ? integrationAction() : "Reconectar ao KDE"}</button>
+        <AppButton type="button" disabled={busy} onClick={() => setOpen(false)}>Fechar</AppButton>
+        <AppButton type="button" disabled={busy || loading} onClick={() => { setError(""); setRefresh(n => n + 1); }}>Verificar novamente</AppButton>
+        <AppButton type="button" disabled={busy || loading || !status?.kwin_available || !status?.daemon_connected} onClick={configure}>{busy ? "Reconectando…" : status ? integrationAction() : "Reconectar ao KDE"}</AppButton>
       </div>
     </Modal>}
   </section>;

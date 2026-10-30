@@ -1,4 +1,6 @@
+import { AppButton } from "./app-button";
 import { AppSelect } from "./app-select";
+import { createPortal } from "react-dom";
 import { useEffect, useState, type ReactNode } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { DeviceAccessButton } from "./device-access-panel";
@@ -16,9 +18,9 @@ export const keyboardInputApi = {
   start: (deviceId: string) => invoke<InputStatus>("start_keyboard", { deviceId }),
   pause: () => invoke<InputStatus>("pause_keyboard"),
 };
-export function NativeInputPanel({ native, connected, simulation, config, focused = true, version = "", kind = "mouse", api = kind === "keyboard" ? keyboardInputApi : inputApi, device, actions, available = true }: {
+export function NativeInputPanel({ native, connected, simulation, config, focused = true, version = "", kind = "mouse", api = kind === "keyboard" ? keyboardInputApi : inputApi, device, actions, statusContainer, connectionLabel, available = true }: {
   kind?: "mouse" | "keyboard"; focused?: boolean; version?: string; native: boolean; connected: boolean; simulation: boolean; config: Config | null | undefined; api?: typeof inputApi;
-  device?: ConfiguredDevice; actions?: ReactNode; available?: boolean;
+  device?: ConfiguredDevice; actions?: ReactNode; statusContainer?: HTMLElement | null; connectionLabel?: string; available?: boolean;
 }) {
   const [status, setStatus] = useState<InputStatus | null>(null);
   const [selected, setSelected] = useState("");
@@ -58,10 +60,11 @@ export function NativeInputPanel({ native, connected, simulation, config, focuse
     const ownActive = !!status?.active && status.device_id === device.id;
     const otherActive = !!status?.active && !ownActive;
     const label = !native || !connected ? "Serviço indisponível" : !status ? "Verificando…" : ownActive ? (status.message.startsWith("Aguardando uma conexão") ? "Aguardando conexão" : "Remapeamento ativo") : !available ? "Desconectado" : otherActive ? `Outro ${name} ativo` : "Pausado";
+    const indicator = <span className="status-chip" data-state={ownActive ? "active" : "paused"} role="status">{label}</span>;
     return <div className="device-remapping">
-      <span className="status-chip" data-state={ownActive ? "active" : "paused"} role="status">{label}</span>
+      {connectionLabel !== undefined ? <div className="device-connection-row"><span className="device-card-caption">{connectionLabel}</span>{indicator}</div> : statusContainer ? createPortal(indicator, statusContainer) : indicator}
       <div className="device-card-actions">
-        <button type="button" className="secondary-button" aria-label={`${ownActive ? "Pausar" : "Ativar"} ${device.name}`} disabled={!native || !connected || !status || busy || otherActive || !ownActive && (!focused || !available)} onClick={() => void act(!ownActive)}>{busy ? "Aguarde…" : ownActive ? "Pausar" : "Ativar"}</button>
+        <AppButton type="button" className="secondary-button" aria-label={`${ownActive ? "Pausar" : "Ativar"} ${device.name}`} disabled={!native || !connected || !status || busy || otherActive || !ownActive && (!focused || !available)} onClick={() => void act(!ownActive)}>{busy ? "Aguarde…" : ownActive ? "Pausar" : "Ativar"}</AppButton>
         <DeviceAccessButton device={device} compact disabled={!native || !connected || busy} onChanged={() => setRefresh(n => n + 1)} />
         {actions}
       </div>
@@ -77,9 +80,9 @@ export function NativeInputPanel({ native, connected, simulation, config, focuse
       {!devices.length && <option value="">Adicione um {name} em Cadastros</option>}{devices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
     </AppSelect>
     <details className="input-details"><summary>Compatibilidade e segurança</summary><p className="hint">{kind === "keyboard" ? "Uma interface de teclado alfanumérico por vez. Solte todas as teclas antes de ativar. Para pausar por emergência, pressione Ctrl + Alt + Pause no teclado físico, mesmo que essas teclas estejam remapeadas." : "Interfaces físicas de mouse, incluindo modelos compostos compatíveis, com até oito botões suportados."} Pause outros remapeadores nessa interface antes de ativar. Fechar a janela mantém o serviço funcionando.</p></details>
-    <div className="button-row"><button type="button" disabled={!native || !connected || !status || !selectedId || !focused || busy || !!status.active} onClick={() => void act(true)}>{busy && !status?.active ? "Ativando…" : "Ativar remapeamento"}</button>
-      <button type="button" className="secondary-button" disabled={!native || !connected || busy || !status?.active} onClick={() => void act(false)}>{busy && status?.active ? "Pausando…" : "Pausar remapeamento"}</button>
-      <button type="button" className="secondary-button" disabled={!native || !connected || busy} onClick={() => { setError(""); setRefresh(n => n + 1); }}>Atualizar estado</button></div>
+    <div className="button-row"><AppButton type="button" disabled={!native || !connected || !status || !selectedId || !focused || busy || !!status.active} onClick={() => void act(true)}>{busy && !status?.active ? "Ativando…" : "Ativar remapeamento"}</AppButton>
+      <AppButton type="button" className="secondary-button" disabled={!native || !connected || busy || !status?.active} onClick={() => void act(false)}>{busy && status?.active ? "Pausando…" : "Pausar remapeamento"}</AppButton>
+      <AppButton type="button" className="secondary-button" disabled={!native || !connected || busy} onClick={() => { setError(""); setRefresh(n => n + 1); }}>Atualizar estado</AppButton></div>
     <div className="native-access-entry"><DeviceAccessButton device={devices.find(d => d.id === selectedId)} disabled={!native || !connected || busy} onChanged={() => setRefresh(n => n + 1)} /></div>
     {status?.message && <p role="status">{status.message}</p>}{error && <p role="alert">{error}</p>}
     {!native && <p className="hint">Disponível no aplicativo nativo.</p>}

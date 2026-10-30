@@ -1,3 +1,5 @@
+import { AppIcon } from "./app-icon";
+import { AppButton } from "./app-button";
 import { useEffect, useId, useRef, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 
@@ -33,7 +35,7 @@ export function Modal({ title, children, onDismiss, busy = false, initialFocus, 
     aria-labelledby={titleId} aria-modal="true" aria-busy={busy}
     onCancel={event => { event.preventDefault(); event.stopPropagation(); if (!busy) onDismiss(); }}>
     <div className="modal-header"><h2 id={titleId}>{title}</h2>
-      <button type="button" className="modal-close" aria-label={`Fechar: ${title}`} disabled={busy} onClick={onDismiss}>×</button>
+      <AppButton type="button" className="modal-close" aria-label={`Fechar: ${title}`} disabled={busy} onClick={onDismiss}><AppIcon name="close" /></AppButton>
     </div>
     <div className="modal-content">{children}</div>
   </dialog>, document.body);

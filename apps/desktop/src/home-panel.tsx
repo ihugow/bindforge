@@ -1,3 +1,4 @@
+import { AppButton } from "./app-button";
 import { connectedInterface } from "./configured-devices";
 import { AppSelect } from "./app-select";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -13,7 +14,7 @@ import { ProfileName } from "./profile-name";
 import { profileApi } from "./profile-api";
 import { configWithBindings } from "./mouse-bindings";
 import { watchInventory, type DetectedDevice, type InventoryState } from "./devices";
-import { layouts, withDevice, withoutDevice, type ConfiguredDevice } from "./configured-devices";
+import { withDevice, withoutDevice, type ConfiguredDevice } from "./configured-devices";
 import { useWorkspaceNavigation } from "./workspace-navigation";
 import type { Config, Profile } from "./profiles";
 import type { DaemonConnection } from "./daemon-status";
@@ -28,6 +29,7 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
   const [inventory, setInventory] = useState<InventoryState>({ phase: "idle" });
   const [refresh, setRefresh] = useState(0);
   const [editor, setEditor] = useState<Editor | null>(null);
+  const [remappingStatusTarget, setRemappingStatusTarget] = useState<HTMLDivElement | null>(null);
   const [draft, setDraft] = useState({ dirty: false, busy: false });
   const [pending, setPending] = useState<(() => void) | null>(null);
   const [adding, setAdding] = useState(false);
@@ -105,21 +107,21 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
       setMessage(`Dispositivo “${editingDevice.name}” removido.`);
     }} />;
   const remapping = (device: ConfiguredDevice, showSettings = false) => <NativeInputPanel
-    device={device} kind={device.kind} actions={showSettings && <button type="button" className="secondary-button device-settings-button" disabled={!native || !config}
-      onClick={() => configureDevice(device)} aria-label={`Configurações de ${device.name}`} title="Configurações do dispositivo"><AppIcon name="gear" /></button>}
+    connectionLabel={showSettings ? (inventory.phase !== "ready" ? "Conexão não verificada" : connectedInterface(device, devices) ? "Conectado" : "Desconectado") : undefined}
+    device={device} kind={device.kind} statusContainer={showSettings ? undefined : remappingStatusTarget} actions={showSettings && <AppButton type="button" className="secondary-button device-settings-button" disabled={!native || !config}
+      onClick={() => configureDevice(device)} aria-label={`Configurações de ${device.name}`} title="Configurações do dispositivo"><AppIcon name="gear" /></AppButton>}
     native={native} connected={connected} focused={connected && daemon.status.focus_state === "focused"}
     version={connected ? daemon.status.revision : ""} simulation={simulation} config={config} api={inputApis?.[device.kind]}
     available={inventory.phase !== "ready" || !!connectedInterface(device, devices)} />;
   const confirmNavigation = pending && <Modal title="Alterações não salvas" compact onDismiss={() => setPending(null)} initialFocus="[data-keep-editing]">
     <p>Você alterou as ações deste perfil. Continue editando para salvar ou descarte as alterações antes de sair.</p><div className="button-row modal-actions">
-      <button type="button" data-keep-editing onClick={() => setPending(null)}>Continuar editando</button>
-      <button type="button" className="danger-button" onClick={() => { const proceed = pending; setPending(null); setDraft({ dirty: false, busy: false }); proceed(); }}>Descartar e continuar</button>
+      <AppButton type="button" data-keep-editing onClick={() => setPending(null)}>Continuar editando</AppButton>
+      <AppButton type="button" className="danger-button" onClick={() => { const proceed = pending; setPending(null); setDraft({ dirty: false, busy: false }); proceed(); }}>Descartar e continuar</AppButton>
     </div></Modal>;
   if (editor) return <div className="device-editor-page">
-    <button className="editor-back" type="button" disabled={draft.busy} onClick={() => leave(closeEditor)}>← Dispositivos</button>
-    <div className="editor-page-heading"><div><h2 ref={heading} tabIndex={-1}>{editor.device?.name ?? "Ações gerais do mouse"}</h2><p>{editor.device?.kind === "keyboard" ? layouts[editor.device.layout!] : `${editor.device?.button_count ?? 5} botões · mouse`}</p></div>
+    <div className="editor-page-heading"><div className="editor-device-identity"><div className="editor-device-title"><AppButton className="editor-back" type="button" aria-label="Voltar para dispositivos" title="Voltar para dispositivos" disabled={draft.busy} onClick={() => leave(closeEditor)}><AppIcon name="back" /></AppButton><h2 ref={heading} tabIndex={-1}>{editor.device?.name ?? "Ações gerais do mouse"}</h2></div></div>
       {editor.device && <div className="editor-device-options">
-        <button type="button" className="secondary-button" disabled={!native || !config || draft.busy} onClick={() => configureDevice(editor.device!)}><AppIcon name="settings" />Configurações do dispositivo</button>
+        <AppButton type="button" className="secondary-button" disabled={!native || !config || draft.busy} onClick={() => configureDevice(editor.device!)}><AppIcon name="gear" />Configurações</AppButton>
         {remapping(editor.device)}
       </div>}
     </div>
@@ -127,7 +129,7 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
       const id = value;
       leave(() => { const next = config?.profiles.find(p => p.id === id); if (!next || !config) return; setSelectedId(id); setDraft({ dirty: false, busy: false }); setMessage(""); setEditor({ ...editor, profile: structuredClone(next), revision: config.revision }); });
     }}>{config?.profiles.map(p => <option key={p.id} value={p.id}>{p.name}{p.enabled ? "" : " (desativado)"}</option>)}</AppSelect></div>
-      <div className="editor-live-profile"><small>Perfil em uso</small><strong>{connected ? <ProfileName id={daemon.status.active_profile_id} config={config} /> : "Serviço indisponível"}</strong></div></div>
+      {editor.device && <div className="editor-remapping-status" ref={setRemappingStatusTarget} />}</div>
     {message && <p className="editor-saved-message" role="status">{message}</p>}
     {editor.device?.kind === "keyboard" ? <KeyboardEditor key={`${editor.device.id}:${editor.profile.id}:${editorVersion}`} inline profile={editor.profile} revision={editor.revision} device={editor.device} save={persist} close={closeEditor} restoreFocus={trigger} onDirtyChange={onDirtyChange} />
       : <MouseWorkspace key={`${editor.device?.id ?? "general"}:${editor.profile.id}:${editorVersion}`} profile={editor.profile} revision={editor.revision} device={editor.device} save={persist} onDirtyChange={onDirtyChange} />}
@@ -135,23 +137,22 @@ export function HomePanel({ config, native, daemon, active, onConfigChange, onSa
     {confirmNavigation}
   </div>;
   return <section className="home-panel" aria-labelledby="home-heading">
-    <div className="home-heading"><div><h2 id="home-heading">Seus dispositivos</h2><p>Escolha um dispositivo para configurar suas ações.</p></div><button type="button" className="secondary-button" disabled={!native || !connected || !config || inventory.phase !== "ready"} onClick={() => setAdding(true)}>+ Adicionar dispositivo</button></div>
-    {config === null && <><p role="alert">Não foi possível carregar seus perfis.</p><button type="button" onClick={() => { setError(""); void api.load().then(onConfigChange).catch(e => setError(String(e))); }}>Tentar novamente</button></>}
+    <div className="workspace-page-heading"><div><h2 id="home-heading">Seus dispositivos</h2><p>Escolha um dispositivo para configurar suas ações.</p></div><div className="workspace-page-actions"><AppButton type="button" disabled={!native || !connected || !config || inventory.phase !== "ready"} onClick={() => setAdding(true)}><AppIcon name="plus" />Adicionar dispositivo</AppButton></div></div>
+    {config === null && <><p role="alert">Não foi possível carregar seus perfis.</p><AppButton type="button" onClick={() => { setError(""); void api.load().then(onConfigChange).catch(e => setError(String(e))); }}>Tentar novamente</AppButton></>}
     {!connected && <p className="hint" role="status">Inicie o serviço em Configurações para ativar o remapeamento. Seus perfis salvos continuam disponíveis para edição.</p>}
     <div className="device-showcase device-overview">
       {(config?.devices ?? []).map(device => <article key={device.id} className="device-card device-overview-card" aria-label={device.name}>
         <div className="device-card-top"><span>{device.kind === "mouse" ? "MOUSE" : "TECLADO"}</span><DeviceBattery device={connectedInterface(device, devices)} /></div>
-        <button className="device-art-button" type="button" disabled={!profile} aria-label={`Abrir remapeamento de ${device.name}`} onClick={() => open(device)}><span className="device-card-art">{device.kind === "mouse" ? <MouseArt /> : <KeyboardArt />}</span></button>
-        <h3 className="device-card-name">{device.name}</h3><span className="device-card-caption">{device.kind === "mouse" ? `${device.button_count} botões` : layouts[device.layout!]}</span>
-        <span className="device-card-caption">{inventory.phase !== "ready" ? "Conexão não verificada" : !!connectedInterface(device, devices) ? "Conectado" : "Desconectado"}</span>
+        <AppButton className="device-art-button" type="button" disabled={!profile} aria-label={`Abrir remapeamento de ${device.name}`} onClick={() => open(device)}><span className="device-card-art">{device.kind === "mouse" ? <MouseArt /> : <KeyboardArt />}</span></AppButton>
+        <h3 className="device-card-name">{device.name}</h3>
         {remapping(device, true)}
       </article>)}
     </div>
     {!config?.devices?.length && <p className="hint">Adicione seu mouse ou teclado para começar.</p>}
     <div className="device-overview-footer"><small>Perfil em uso: <strong>{connected ? <ProfileName id={daemon.status.active_profile_id} config={config} /> : "—"}</strong> · A seleção acompanha a janela em foco.</small></div>
     <details className="device-overview-options"><summary>Opções dos dispositivos</summary><div className="button-row">
-      <button type="button" data-general-mouse className="secondary-button" disabled={!profile} onClick={() => open()}>Ações gerais do mouse</button>
-      <button type="button" className="secondary-button" disabled={!native || !connected || inventory.phase === "loading"} onClick={() => setRefresh(n => n + 1)}>Atualizar dispositivos</button>
+      <AppButton type="button" data-general-mouse className="secondary-button" disabled={!profile} onClick={() => open()}>Ações gerais do mouse</AppButton>
+      <AppButton type="button" className="secondary-button" disabled={!native || !connected || inventory.phase === "loading"} onClick={() => setRefresh(n => n + 1)}>Atualizar dispositivos</AppButton>
     </div></details>
     {inventory.phase === "error" && <p role="alert">{inventory.message}</p>}{error && <p role="alert">{error}</p>}
     {message && <p role="status">{message}</p>}

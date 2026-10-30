@@ -1,3 +1,5 @@
+import { AppIcon } from "./app-icon";
+import { AppButton } from "./app-button";
 import { connectedInterface } from "./configured-devices";
 import { useEffect, useState } from "react";
 import { DeviceBattery } from "./device-battery";
@@ -26,19 +28,19 @@ export function DevicesPanel({ native, connected, read, config, onConfigChange, 
   }, [native, connected, read, refresh]);
   return <section aria-labelledby="devices-heading">
     <div className="section-heading"><h2 id="devices-heading">Mouses e teclados</h2>
-      <button type="button" disabled={!native || !connected || inventory.phase === "loading"}
-        onClick={() => setRefresh(n => n + 1)}>{inventory.phase === "loading" ? "Consultando…" : "Atualizar lista"}</button>
+      <AppButton type="button" disabled={!native || !connected || inventory.phase === "loading"}
+        onClick={() => setRefresh(n => n + 1)}>{inventory.phase === "loading" ? "Consultando…" : "Atualizar lista"}</AppButton>
     </div>
     <p>Cadastre seus periféricos e vincule cada um à interface correspondente.</p>
     <div className="device-showcase configured-devices">
-      <button type="button" className="device-card add-device-card" disabled={!native || !config} onClick={() => setEditing("new")}>
-        <span className="add-device-symbol" aria-hidden="true">+</span><span className="device-card-name">Configurar dispositivo</span><span className="device-card-caption">Mouse ou teclado</span>
-      </button>
-      {(config?.devices ?? []).map(d => <button type="button" className="device-card" key={d.id} onClick={() => setEditing(d)}>
+      <AppButton type="button" className="device-card add-device-card" disabled={!native || !config} onClick={() => setEditing("new")}>
+        <span className="add-device-symbol" aria-hidden="true"><AppIcon name="plus" /></span><span className="device-card-name">Configurar dispositivo</span><span className="device-card-caption">Mouse ou teclado</span>
+      </AppButton>
+      {(config?.devices ?? []).map(d => <AppButton type="button" className="device-card" key={d.id} onClick={() => setEditing(d)}>
         <span className="device-card-art">{d.kind === "mouse" ? <MouseArt /> : <KeyboardArt />}</span><span className="device-card-name">{d.name}</span>
         <span className="device-card-caption">{d.kind === "mouse" ? `Mouse · ${d.button_count} botões` : `Teclado · ${layouts[d.layout!]}`}</span>
-        <span className="device-card-caption">{!connected || inventory.phase !== "ready" ? "Conexão não verificada" : !!connectedInterface(d, inventory.devices) ? "Interface conectada" : "Interface indisponível"}</span><DeviceBattery device={inventory.phase === "ready" ? connectedInterface(d, inventory.devices) : undefined} /><span className="device-card-link">Editar dispositivo ↗</span>
-      </button>)}
+        <span className="device-card-caption">{!connected || inventory.phase !== "ready" ? "Conexão não verificada" : !!connectedInterface(d, inventory.devices) ? "Interface conectada" : "Interface indisponível"}</span><DeviceBattery device={inventory.phase === "ready" ? connectedInterface(d, inventory.devices) : undefined} /><span className="device-card-link">Editar dispositivo <AppIcon name="external" /></span>
+      </AppButton>)}
     </div>
     {config && !(config.devices?.length) && <p className="hint">Comece pelo + para adicionar seu primeiro dispositivo.</p>}
     {message && <p role="status">{message}</p>}

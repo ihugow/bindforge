@@ -113,6 +113,7 @@ pub struct KdeWindowMonitor {
     mailbox: Arc<Mailbox>,
     owner: Option<String>,
     bridge: runtime::BridgeRuntime,
+    input: platform_linux::native::InputSession,
 }
 impl KdeWindowMonitor {
     pub fn session() -> Result<Self, String> {
@@ -142,7 +143,7 @@ impl KdeWindowMonitor {
             .serve_at(PATH, CaptureInterface { store: capture, sequence }).map_err(|e| e.to_string())?
             .serve_at(PATH, StatusInterface(status)).map_err(|e| e.to_string())?
             .serve_at(PATH, remap_ipc::dbus::IntegrationInterface(bridge_store.clone())).map_err(|e| e.to_string())?
-            .serve_at(PATH, platform_linux::native::InputInterface(input)).map_err(|e| e.to_string())?
+            .serve_at(PATH, platform_linux::native::InputInterface(input.clone())).map_err(|e| e.to_string())?
             .serve_at(PATH, receiver).map_err(|e| e.to_string())?
             .build().map_err(|e| e.to_string())?;
         let bus = zbus::blocking::fdo::DBusProxy::new(&connection).map_err(|e| e.to_string())?;
@@ -157,7 +158,7 @@ impl KdeWindowMonitor {
         }
         let owner = Self::kwin_owner(&connection)?;
         let bridge = runtime::BridgeRuntime::new(connection.clone(), bridge_store, migrate);
-        Ok(Self { connection, mailbox, owner, bridge })
+        Ok(Self { connection, mailbox, owner, bridge, input })
     }
     pub fn status_notifier(&self) -> impl Fn(&remap_ipc::DaemonStatus) -> Result<(), String> + 'static {
         let connection = self.connection.clone();
@@ -184,6 +185,9 @@ impl KdeWindowMonitor {
         if after_wait != owner { bridge_lost |= self.bridge.tick(after_wait.as_deref()); }
         let owner = after_wait;
         if owner != self.owner || bridge_lost {
+            // Losing the authenticated bridge cancels capture, unlike an ordinary
+            // desktop/overview transition with no active application window.
+            self.input.focus(false);
             self.owner = owner.clone();
             if let Some((sender, event)) = pending {
                 if owner.as_deref() == Some(sender.as_str()) {

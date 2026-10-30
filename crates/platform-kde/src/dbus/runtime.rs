@@ -259,8 +259,10 @@ mod tests {
         calls.lock().unwrap().loaded.remove(RUNTIME_PLUGIN);
         monitor.bridge.next_attempt = Instant::now();
         assert_eq!(monitor.poll_event().unwrap(), focused);
+        monitor.input.focus(true);
         server.close().unwrap();
         assert_eq!(monitor.poll_event().unwrap(), Some(WindowEvent::NoActiveWindow));
+        assert!(monitor.input.status().message.contains("perda de foco/janela"));
         assert!(!monitor.bridge.store.snapshot().loaded); assert!(!monitor.bridge.store.snapshot().focus_received);
         calls.lock().unwrap().loaded.remove(RUNTIME_PLUGIN);
         let _replacement = kwin(address, calls.clone());

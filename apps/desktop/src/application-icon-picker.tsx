@@ -1,3 +1,4 @@
+import { AppButton } from "./app-button";
 import { useEffect, useRef, useState } from "react";
 import { ProfileIcon } from "./profile-icon";
 import { appIds } from "./profiles";
@@ -44,16 +45,16 @@ export function ApplicationIconPicker({ apps, automaticAppId, hasIcon, onSelect,
     // Only a new capture should trigger automatic lookup.
   }, [automaticAppId]);
   return <div className="application-icon-picker">
-    <button type="button" className="secondary-button" disabled={loading || !appIds(apps).length} onClick={() => void search(appIds(apps))}>
+    <AppButton type="button" className="secondary-button" disabled={loading || !appIds(apps).length} onClick={() => void search(appIds(apps))}>
       {loading ? "Buscando ícones…" : "Usar ícone do aplicativo"}
-    </button>
+    </AppButton>
     {!appIds(apps).length && <p className="hint">Associe um aplicativo ao perfil para buscar seu ícone.</p>}
     {message && <p className="hint" role="status">{message}</p>}
     {choices.length > 0 && <div className="application-icon-choices" role="group" aria-label="Ícones dos aplicativos associados">
-      {choices.map(choice => <button type="button" className="application-icon-choice secondary-button" key={choice.app_id}
+      {choices.map(choice => <AppButton type="button" className="application-icon-choice secondary-button" key={choice.app_id}
         onClick={() => { onSelect(choice.icon); setChoices([]); setMessage(`Ícone de ${choice.name} selecionado. Salve o perfil para aplicar.`); }}>
         <ProfileIcon icon={choice.icon} /><span>{choice.name}<small>{choice.app_id}</small></span>
-      </button>)}
+      </AppButton>)}
     </div>}
   </div>;
 }

@@ -1,7 +1,9 @@
+import { AppButton } from "./app-button";
 import { bindingScope } from "./configured-devices";
 import { AppSelect } from "./app-select";
 import { useEffect, useState } from "react";
 import { MouseArt } from "./device-art";
+import { EditorSaveNotice } from "./editor-save-notice";
 import { mouseActionDraft, draftMouseAction, mouseDraftBindings, mouseDraftChanged, type MouseActionDraft } from "./mouse-bindings";
 import { actionLabel, mouseBinding, mouseButtons, mouseControls } from "./mouse-bindings";
 import type { ConfiguredDevice } from "./configured-devices";
@@ -36,10 +38,22 @@ export function MouseWorkspace({ profile, revision, device, save, onDirtyChange 
   }
   return <div className="device-editor-body">
     <div className="device-editor-grid">
-      <div className="editor-canvas"><div className="mouse-workspace-stage"><div className="mouse-diagram"><MouseArt />{controls.slice(0, 5).map(b => <button key={b.code} type="button"
-        className={`mouse-hotspot${selected === b.code ? " is-selected" : ""}`} style={{ left: `${b.x}%`, top: `${b.y}%` }} aria-label={`Configurar ${b.name}`} aria-pressed={selected === b.code}
-        disabled={busy} onClick={() => setSelected(b.code)}>{b.code}</button>)}</div><small>Ilustração genérica</small></div>
-        <details className="editor-controls-list"><summary>Ver lista de botões ({controls.length})</summary><ul className="mapping-list">{controls.map(b => <li key={b.code}><button type="button" disabled={busy} aria-pressed={selected === b.code} onClick={() => setSelected(b.code)}><span><strong>{b.name}</strong><small>{description(b.code)}</small></span><span>{b.code}</span></button></li>)}</ul></details>
+      <div className="editor-canvas"><div className="mouse-workspace-stage"><div className="mouse-diagram mouse-assignment-diagram"><MouseArt />
+        <svg className="mouse-assignment-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          {controls.slice(0, 5).map(b => <line key={b.code} x1={25 + b.x / 2} y1={b.y} x2={b.code === 3 || b.code === 2 ? 76 : 24} y2={b.code === 2 ? 45 : b.y} className={selected === b.code ? "is-selected" : undefined} />)}
+        </svg>
+        {controls.slice(0, 5).map(b => {
+          const label = description(b.code), active = selected === b.code;
+          return <div key={b.code} className={`mouse-assignment${active ? " is-selected" : ""}`}>
+            <AppButton type="button" className={`mouse-hotspot${active ? " is-selected" : ""}`} style={{ left: `${25 + b.x / 2}%`, top: `${b.y}%` }}
+              aria-label={`Configurar ${b.name}: ${label}`} aria-pressed={active} disabled={busy} onClick={() => setSelected(b.code)}>{b.code}</AppButton>
+            <AppButton type="button" className="mouse-assignment-label" style={{ left: b.code === 3 || b.code === 2 ? "76%" : "0%", top: `${b.code === 2 ? 45 : b.y}%` }}
+              aria-label={`Configurar ${b.name}: ${label}`} aria-pressed={active} disabled={busy} onClick={() => setSelected(b.code)}>
+              <small>{b.name}</small><strong>{label}</strong>
+            </AppButton>
+          </div>;
+        })}</div></div>
+        {controls.length > 5 && <details className="editor-controls-list"><summary>Mais botões ({controls.length - 5})</summary><ul className="mapping-list">{controls.slice(5).map(b => <li key={b.code}><AppButton type="button" disabled={busy} aria-pressed={selected === b.code} onClick={() => setSelected(b.code)}><span><strong>{b.name}</strong><small>{description(b.code)}</small></span><span>{b.code}</span></AppButton></li>)}</ul></details>}
       </div>
       <section className="action-sidebar" aria-labelledby="mouse-action-title"><span className="eyebrow">AÇÃO SELECIONADA</span><h3 id="mouse-action-title">{controls.find(b => b.code === selected)?.name ?? `Botão ${selected}`}</h3>
         <fieldset disabled={busy}><label htmlFor="workspace-action-kind">Comportamento</label><AppSelect id="workspace-action-kind" value={current.kind} onValueChange={value => patch({ kind: value as MouseActionDraft["kind"] })}>
@@ -55,6 +69,6 @@ export function MouseWorkspace({ profile, revision, device, save, onDirtyChange 
       </section>
     </div>
     {error && <p role="alert">{error}</p>}
-    <footer className="editor-savebar"><span role="status">{dirty ? "Alterações não salvas" : "Todas as alterações salvas"}</span><div className="button-row"><button type="button" className="secondary-button" disabled={busy || !dirty} onClick={() => { setDrafts({}); setError(""); }}>Descartar</button><button type="button" disabled={busy || !dirty} onClick={() => void persist()}>{busy ? "Salvando…" : "Salvar alterações"}</button></div></footer>
+    <EditorSaveNotice dirty={dirty} busy={busy} discard={() => { setDrafts({}); setError(""); }} save={() => void persist()} />
   </div>;
 }

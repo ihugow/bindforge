@@ -1,3 +1,4 @@
+import { AppButton } from "./app-button";
 import { connectionsOf } from "./configured-devices";
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "./modal";
@@ -9,7 +10,7 @@ export function DeviceAccessButton({ device, disabled = false, api = deviceAcces
 }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
-  return <><button type="button" className="secondary-button" ref={trigger} disabled={disabled || !device} onClick={() => setOpen(true)} aria-label={compact ? `Gerenciar acesso de ${device?.name ?? "dispositivo"}` : undefined}>{compact ? "Acesso" : <>Gerenciar acesso{device ? ` · ${device.name}` : ""}</>}</button>
+  return <><AppButton type="button" className="secondary-button" ref={trigger} disabled={disabled || !device} onClick={() => setOpen(true)} aria-label={compact ? `Gerenciar acesso de ${device?.name ?? "dispositivo"}` : undefined}>{compact ? "Acesso" : <>Gerenciar acesso{device ? ` · ${device.name}` : ""}</>}</AppButton>
     {open && device && <DeviceAccessPanel key={`${device.id}:${device.interface_id}`} device={device} api={api} close={() => setOpen(false)} restoreFocus={trigger} onChanged={onChanged} />}
   </>;
 }
@@ -66,10 +67,10 @@ export function DeviceAccessPanel({ device, api = deviceAccessApi, close, restor
     {reconnect && <p className="hint">Depois de reconectar, atualize o estado. Sem número de série, trocar de porta pode exigir um novo vínculo.</p>}
     {error && <p role="alert">{error}</p>}
     <div className="button-row modal-actions">
-      <button type="button" className="secondary-button" disabled={busy} onClick={() => setRefresh(n => n + 1)}>Atualizar estado</button>
-      <button type="button" disabled={busy || !status?.helper_available} onClick={() => void change("grant")}>{status?.managed ? "Reaplicar autorização" : "Conceder acesso"}</button>
-      {status?.managed && <button type="button" className="danger-button" disabled={busy || !status.helper_available} onClick={() => void change("revoke")}>Remover autorização</button>}
-      <button type="button" disabled={busy} onClick={close}>Fechar</button>
+      <AppButton type="button" className="secondary-button" disabled={busy} onClick={() => setRefresh(n => n + 1)}>Atualizar estado</AppButton>
+      <AppButton type="button" disabled={busy || !status?.helper_available} onClick={() => void change("grant")}>{status?.managed ? "Reaplicar autorização" : "Conceder acesso"}</AppButton>
+      {status?.managed && <AppButton type="button" className="danger-button" disabled={busy || !status.helper_available} onClick={() => void change("revoke")}>Remover autorização</AppButton>}
+      <AppButton type="button" disabled={busy} onClick={close}>Fechar</AppButton>
     </div>
   </Modal>;
 }

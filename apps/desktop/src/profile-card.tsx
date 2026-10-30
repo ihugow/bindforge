@@ -1,3 +1,4 @@
+import { AppButton } from "./app-button";
 import type { PointerEvent } from "react";
 import { ProfileCover } from "./profile-cover";
 import type { Profile } from "./profiles";
@@ -16,9 +17,9 @@ export function ProfileCard({ profile, image, disabled, onEdit }: {
     event.currentTarget.style.removeProperty("--shine-x");
     event.currentTarget.style.removeProperty("--shine-y");
   }
-  return <button type="button" className="profile-card" aria-label={`Editar perfil ${profile.name}`}
+  return <AppButton type="button" className="profile-card" aria-label={`Editar perfil ${profile.name}`}
     title={profile.name} disabled={disabled} onClick={onEdit}
     onPointerMove={highlight} onPointerLeave={reset} onPointerCancel={reset}>
     <ProfileCover image={image} icon={profile.icon} name={profile.name} />
-  </button>;
+  </AppButton>;
 }

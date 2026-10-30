@@ -155,7 +155,10 @@ O daemon de uso normal continua sendo executado sem sudo.
 O mesmo InputSession contém dois slots independentes, um de mouse e outro de
 teclado. Ambos começam pausados; StartMouse/StartKeyboard exigem cadastro salvo,
 foco KWin autenticado e sessão logind disponível. Alterar o cadastro de um tipo
-pausa apenas esse tipo; bloqueio, suspensão, perda de foco e reset pausam ambos.
+pausa apenas esse tipo; bloqueio, suspensão, perda da ponte KWin e reset pausam ambos.
+Um evento autenticado de nenhuma janela ativa (área de trabalho ou transição do
+KDE) seleciona o perfil Padrão e mantém a captura já ativada. Novas ativações
+continuam exigindo uma janela em foco.
 Status1.simulation é false enquanto qualquer slot estiver ativo. A UI e a bandeja
 exibem e controlam o estado de cada tipo separadamente.
 

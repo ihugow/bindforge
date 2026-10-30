@@ -1,3 +1,4 @@
+import { AppButton } from "./app-button";
 import { useCallback, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { AppIcon } from "./app-icon";
 import { WorkspaceNavigation, type NavigationGuard } from "./workspace-navigation";
@@ -34,11 +35,11 @@ export function WorkspaceTabs({ home, profiles, devices, settings, status }: {
   return <WorkspaceNavigation.Provider value={registerGuard}><div className="app-shell">
     <header className="app-topbar"><div className="app-brand"><span className="app-mark"><AppIcon name="spark" /></span><h1>BindForge</h1></div>
     <div className="workspace-tabs" role="tablist" aria-orientation="horizontal" aria-label="Seções do aplicativo">
-      {tabs.map((tab, index) => <button key={tab.id} type="button" role="tab" id={`tab-${tab.id}`}
+      {tabs.map((tab, index) => <AppButton key={tab.id} type="button" role="tab" id={`tab-${tab.id}`}
         aria-controls={`panel-${tab.id}`} aria-selected={active === tab.id} tabIndex={active === tab.id ? 0 : -1}
-        onClick={() => select(tab.id)} onKeyDown={event => navigate(event, index)}><AppIcon name={tab.icon} /><span>{tab.label}</span></button>)}
+        onClick={() => select(tab.id)} onKeyDown={event => navigate(event, index)}><AppIcon name={tab.icon} /><span>{tab.label}</span></AppButton>)}
     </div>
-    <div className="app-connection" role="status">{settings ? <button className="connection-link" type="button" onClick={() => select("settings")} title="Abrir configurações do serviço">{status ?? "Seu espaço de configuração"}</button> : status ?? "Seu espaço de configuração"}</div></header>
+    <div className="app-connection" role="status">{settings ? <AppButton className="connection-link" type="button" onClick={() => select("settings")} title="Abrir configurações do serviço">{status ?? "Seu espaço de configuração"}</AppButton> : status ?? "Seu espaço de configuração"}</div></header>
     <div className="workspace-content">
     {home && <div role="tabpanel" id="panel-home" aria-labelledby="tab-home" hidden={active !== "home"}>
       {home(active === "home")}

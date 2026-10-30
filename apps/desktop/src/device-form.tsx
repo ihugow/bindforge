@@ -1,3 +1,4 @@
+import { AppButton } from "./app-button";
 import { AppSelect } from "./app-select";
 import { useRef, useState } from "react";
 import { DeviceAccessButton } from "./device-access-panel";
@@ -70,10 +71,10 @@ export function DeviceForm({ device, inventory, refreshInventory, save, close, r
         {kind === "mouse" ? <><label htmlFor="device-buttons">Quantidade de botões</label><input id="device-buttons" type="number" min={3} max={32} required value={count} onChange={e => setCount(Number(e.target.value))} /><p className="hint">Inclui os cliques esquerdo, direito e da roda. Não inclui rolagem. De 3 a 32 botões.</p></> : <><label htmlFor="device-layout">Layout físico</label><AppSelect id="device-layout" className="app-select" value={layout} onValueChange={value => setLayout(value as typeof layout)}>{Object.entries(layouts).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</AppSelect><p className="hint">Descreve o teclado; não altera o layout configurado no sistema.</p></>}
         <div className="connection-editor" ref={connectionEditor}>
           <div className="connection-section-heading"><h3>{editing ? "Editar conexão" : "Adicionar conexão"}</h3>
-            {refreshInventory && <button type="button" className="secondary-button" onClick={async () => {
+            {refreshInventory && <AppButton type="button" className="secondary-button" onClick={async () => {
               setBusy(true); setError("");
               try { setFreshInventory(await refreshInventory()); } catch (e) { setError(String(e)); } finally { setBusy(false); }
-            }}>Atualizar interfaces</button>}
+            }}>Atualizar interfaces</AppButton>}
           </div>
           <label htmlFor="device-interface">Interface do dispositivo</label>
           <AppSelect id="device-interface" className="app-select" value={interfaceId} onValueChange={setInterfaceId}>
@@ -84,10 +85,10 @@ export function DeviceForm({ device, inventory, refreshInventory, save, close, r
           <label htmlFor="connection-name">Nome da conexão</label>
           <input id="connection-name" value={connectionName} maxLength={128} placeholder="Receptor, Cabo ou Bluetooth" onChange={e => setConnectionName(e.target.value)} />
           <div className="connection-editor-actions">
-            <button type="button" className="connection-link-button" disabled={!canLink} onClick={applyConnection}>
+            <AppButton type="button" className="connection-link-button" disabled={!canLink} onClick={applyConnection}>
               {!editing && <span aria-hidden="true">＋</span>}{editing ? "Salvar conexão" : "Vincular conexão"}
-            </button>
-            {(editing || interfaceId) && <button type="button" className="secondary-button" onClick={resetConnectionEditor}>Cancelar{editing ? " edição" : " seleção"}</button>}
+            </AppButton>
+            {(editing || interfaceId) && <AppButton type="button" className="secondary-button" onClick={resetConnectionEditor}>Cancelar{editing ? " edição" : " seleção"}</AppButton>}
           </div>
           {duplicate && <p className="hint" role="status">Esta interface já está vinculada ao dispositivo.</p>}
         </div>
@@ -100,12 +101,12 @@ export function DeviceForm({ device, inventory, refreshInventory, save, close, r
                 {!detected && <span className="connection-offline">Desconectada</span>}
               </div>
               <div className="connection-actions">
-                <button type="button" className="secondary-button" aria-label={`Editar conexão ${c.name}`} onClick={() => editConnection(c)}>Editar</button>
-                {index > 0 && <button type="button" className="secondary-button" aria-label={`Priorizar conexão ${c.name}`} onClick={() => setConnections([c, ...connections.filter((_, i) => i !== index)])}>Priorizar</button>}
-                <button type="button" className="secondary-button" aria-label={`Remover conexão ${c.name}`} onClick={() => {
+                <AppButton type="button" className="secondary-button" aria-label={`Editar conexão ${c.name}`} onClick={() => editConnection(c)}>Editar</AppButton>
+                {index > 0 && <AppButton type="button" className="secondary-button" aria-label={`Priorizar conexão ${c.name}`} onClick={() => setConnections([c, ...connections.filter((_, i) => i !== index)])}>Priorizar</AppButton>}
+                <AppButton type="button" className="secondary-button" aria-label={`Remover conexão ${c.name}`} onClick={() => {
                   setConnections(connections.filter((_, i) => i !== index));
                   if (editingConnection === c.interface_id) resetConnectionEditor();
-                }}>Remover</button>
+                }}>Remover</AppButton>
               </div>
             </div>;
           })}
@@ -113,20 +114,20 @@ export function DeviceForm({ device, inventory, refreshInventory, save, close, r
         <p className="hint">Vincule receptor e cabo ao mesmo cadastro. Todas as conexões compartilham as ações. Quando várias estiverem presentes, usamos apenas a primeira da lista; priorize o cabo para usá-lo mesmo com o receptor conectado. Conecte cada uma e atualize a lista para vinculá-la. Sem número de série, o reconhecimento pode depender da porta USB.</p>
       </fieldset>
       {error && <p role="alert">{error}</p>}
-      <div className="button-row modal-actions"><button type="button" disabled={busy} onClick={close}>Cancelar</button><button type="submit" disabled={busy}>{busy ? "Salvando…" : "Salvar dispositivo"}</button></div>
+      <div className="button-row modal-actions"><AppButton type="button" disabled={busy} onClick={close}>Cancelar</AppButton><AppButton type="submit" disabled={busy}>{busy ? "Salvando…" : "Salvar dispositivo"}</AppButton></div>
     </form>
     {device && <div className="device-access-entry"><h3>Acesso para remapeamento</h3><DeviceAccessButton device={device} disabled={busy} /><p className="hint">Autorize cada conexão salva que será usada para remapear.</p></div>}
     {device && remove && <div className="device-access-entry"><h3>Remover dispositivo</h3><p className="hint">Remove o cadastro, suas conexões e as ações específicas deste dispositivo em todos os perfis.</p>
-      <button type="button" className="danger-button" disabled={busy} onClick={() => { setError(""); setConfirmRemove(true); }}>Remover dispositivo</button>
+      <AppButton type="button" className="danger-button" disabled={busy} onClick={() => { setError(""); setConfirmRemove(true); }}>Remover dispositivo</AppButton>
     </div>}
     {confirmRemove && <Modal title={`Remover ${device!.name}?`} compact busy={busy} initialFocus="[data-cancel-removal]" onDismiss={() => setConfirmRemove(false)}>
       <p>O cadastro, as conexões e as ações específicas deste dispositivo serão removidos de todos os perfis. As ações gerais e os outros dispositivos serão mantidos.</p>
       {error && <p role="alert">{error}</p>}
-      <div className="button-row modal-actions"><button type="button" data-cancel-removal disabled={busy} onClick={() => setConfirmRemove(false)}>Cancelar</button>
-        <button type="button" className="danger-button" disabled={busy} onClick={async () => {
+      <div className="button-row modal-actions"><AppButton type="button" data-cancel-removal disabled={busy} onClick={() => setConfirmRemove(false)}>Cancelar</AppButton>
+        <AppButton type="button" className="danger-button" disabled={busy} onClick={async () => {
           setBusy(true); setError("");
           try { await remove!(); close(); } catch (e) { setError(String(e)); } finally { setBusy(false); }
-        }}>{busy ? "Removendo…" : "Confirmar remoção"}</button>
+        }}>{busy ? "Removendo…" : "Confirmar remoção"}</AppButton>
       </div>
     </Modal>}
   </Modal>;

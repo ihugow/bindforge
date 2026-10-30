@@ -1,3 +1,4 @@
+import { AppButton } from "./app-button";
 import { useEffect, useState } from "react";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { captureWindow, type CaptureEvent, type CaptureStart, type CaptureState } from "./window-capture";
@@ -31,9 +32,9 @@ export function WindowCapturePanel({ connected, detected, pending, close, start 
     </div>
     <p className="hint">Requer o daemon e o script de foco do KWin ativos. Jogos Steam identificados aparecem como steam:ID. A detecção não captura teclas ou imagens.</p>
     <div className="button-row">
-      {waiting ? <button type="button" onClick={() => setEnabled(false)}>Cancelar captura</button>
-        : <button type="button" disabled={!connected} onClick={() => { setEnabled(true); setAttempt(n => n + 1); }}>Capturar outra janela</button>}
-      <button type="button" onClick={close}>Fechar captura</button>
+      {waiting ? <AppButton type="button" onClick={() => setEnabled(false)}>Cancelar captura</AppButton>
+        : <AppButton type="button" disabled={!connected} onClick={() => { setEnabled(true); setAttempt(n => n + 1); }}>Capturar outra janela</AppButton>}
+      <AppButton type="button" onClick={close}>Fechar captura</AppButton>
     </div>
   </div>;
 }

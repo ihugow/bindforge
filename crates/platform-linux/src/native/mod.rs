@@ -86,6 +86,11 @@ impl InputSession {
         state.focus_valid = valid && state.restriction.is_none();
         if !valid { state.stop("Remapeamento pausado por perda de foco/janela. Ative novamente quando a ponte estiver conectada."); }
     }
+    /// An authenticated KWin update with no active window selects the fallback
+    /// profile without cancelling capture. New activations still require a window.
+    pub fn no_active_window(&self) {
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).focus_valid = false;
+    }
     pub fn devices(&self, devices: Vec<DeviceRegistration>) {
         let mut state = self.0.lock().unwrap_or_else(|e| e.into_inner());
         for kind in [InputKind::Mouse, InputKind::Keyboard] {
@@ -271,6 +276,25 @@ mod tests {
             session.restrict_session(None);
             assert!(session.start_keyboard("mouse").unwrap_err().contains("ponte KWin"));
         }
+    }
+    #[test]
+    fn desktop_focus_gap_keeps_capture_and_applies_fallback_but_bridge_loss_cancels_it() {
+        let (mut session, mouse, keyboard) = populated_session(false);
+        session.no_active_window();
+        assert!(session.statuses().iter().all(|s| s.active));
+        session.pause_keyboard();
+        assert!(session.start_keyboard("teclado").unwrap_err().contains("ponte KWin"));
+        // The daemon still applies its fallback profile during a focus gap.
+        session.apply_profile(&remap_core::demo_profiles().profiles()[0]).unwrap();
+        assert_eq!(mouse.lock().unwrap().len(), 1);
+        assert!(keyboard.lock().unwrap().is_empty());
+        session.focus(true);
+        assert!(session.status().active);
+        assert!(!session.keyboard_status().active, "manual pause must survive focus recovery");
+        session.focus(false);
+        assert!(session.statuses().iter().all(|s| !s.active));
+        session.focus(true);
+        assert!(session.statuses().iter().all(|s| !s.active), "bridge recovery must require activation");
     }
     fn populated_session(fail_keyboard: bool) -> (InputSession, Arc<Mutex<Vec<Plan>>>, Arc<Mutex<Vec<Plan>>>) {
         let session = InputSession::default();

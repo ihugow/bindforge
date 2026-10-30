@@ -1,3 +1,4 @@
+import { AppButton } from "./app-button";
 import { bindingScope } from "./configured-devices";
 import { AppSelect } from "./app-select";
 import { useRef, useState } from "react";
@@ -34,26 +35,26 @@ export function MouseEditor({ profile, revision, device, simulation = true, save
     <div className="mouse-workspace">
       <div className="mouse-diagram"><MouseArt />{controls.slice(0, 5).map(b => {
         const binding = mouseBinding(bindings, scopeId, b.code, true);
-        return <button key={b.code} type="button" className={`mouse-hotspot${binding ? " is-mapped" : ""}`} style={{ left: `${b.x}%`, top: `${b.y}%` }}
-          aria-label={`Configurar ${b.name}`} title={`${b.name}: ${actionLabel(binding?.action)}`} disabled={busy} onClick={() => openControl(b.code)}>{b.code}</button>;
+        return <AppButton key={b.code} type="button" className={`mouse-hotspot${binding ? " is-mapped" : ""}`} style={{ left: `${b.x}%`, top: `${b.y}%` }}
+          aria-label={`Configurar ${b.name}`} title={`${b.name}: ${actionLabel(binding?.action)}`} disabled={busy} onClick={() => openControl(b.code)}>{b.code}</AppButton>;
       })}</div>
       <ul className="mapping-list">{controls.map(b => {
         const exact = mouseBinding(bindings, scopeId, b.code);
         const effective = mouseBinding(bindings, scopeId, b.code, true);
-        return <li key={b.code}><button type="button" disabled={busy} onClick={() => openControl(b.code)}>
+        return <li key={b.code}><AppButton type="button" disabled={busy} onClick={() => openControl(b.code)}>
           <span><strong>{b.name}</strong><small>{actionLabel(effective?.action)}{scopeId && !exact && effective ? " · ação geral" : ""}</small></span><span className="control-number">{b.code}</span>
-        </button></li>;
+        </AppButton></li>;
       })}</ul>
     </div>
     <p className="hint">Ilustração genérica. A lista apresenta {controls.length} controles; a posição real varia conforme o modelo. Ações de outros botões já salvas são preservadas.</p>
     {error && <p role="alert">{error}</p>}
-    <div className="button-row modal-actions"><button type="button" disabled={busy} onClick={dismiss}>Fechar</button>
-      <button type="button" disabled={busy || !dirty} onClick={persist}>{busy ? "Salvando…" : "Salvar alterações"}</button></div>
+    <div className="button-row modal-actions"><AppButton type="button" disabled={busy} onClick={dismiss}>Fechar</AppButton>
+      <AppButton type="button" disabled={busy || !dirty} onClick={persist}>{busy ? "Salvando…" : "Salvar alterações"}</AppButton></div>
     {control !== null && <ActionEditor key={`${scopeId}-${control}`} name={controls.find(b => b.code === control)?.name ?? `Botão ${control}`} scope={scopeId} action={mouseBinding(bindings, scopeId, control)?.action}
       close={() => setControl(null)} restoreFocus={buttonTrigger} apply={action => { setBindings(current => setMouseBinding(current, scopeId, control, action)); setControl(null); setError(""); }} />}
     {discard && <Modal title="Descartar alterações?" compact onDismiss={() => setDiscard(false)} initialFocus="[data-keep-editing]">
       <p>Os mapeamentos deste perfil ainda não foram salvos.</p><div className="button-row modal-actions">
-        <button type="button" data-keep-editing onClick={() => setDiscard(false)}>Continuar editando</button><button type="button" className="danger-button" onClick={close}>Descartar e fechar</button>
+        <AppButton type="button" data-keep-editing onClick={() => setDiscard(false)}>Continuar editando</AppButton><AppButton type="button" className="danger-button" onClick={close}>Descartar e fechar</AppButton>
       </div>
     </Modal>}
   </Modal>;
@@ -76,7 +77,7 @@ function ActionEditor({ name, scope, action, apply, close, restoreFocus }: {
       </AppSelect></>}
       {kind === "original" && <p className="hint">{scope ? "Remove a personalização deste dispositivo. Uma ação geral, se existir, continua valendo." : "Remove o mapeamento e preserva a função original do botão."}</p>}
       {error && <p role="alert">{error}</p>}
-      <div className="button-row modal-actions"><button type="button" onClick={close}>Cancelar</button><button type="submit">Aplicar ao rascunho</button></div>
+      <div className="button-row modal-actions"><AppButton type="button" onClick={close}>Cancelar</AppButton><AppButton type="submit">Aplicar ao rascunho</AppButton></div>
     </form>
   </Modal>;
 }

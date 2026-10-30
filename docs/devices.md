@@ -187,7 +187,7 @@ acompanha sua presença. Ao trocar de transporte, encerra a captura anterior,
 libera o estado sintético e abre a nova interface com as mesmas ações e validações
 de acesso/capacidades. Se todas desconectarem, mantém a intenção de ativação e
 aguarda uma conexão vinculada. Reconexão física pode retomar automaticamente;
-pausa manual, mudança de cadastro, perda de foco, bloqueio, suspensão, revogação
+pausa manual, mudança de cadastro, perda da ponte KWin, bloqueio, suspensão, revogação
 e erros de captura cancelam essa intenção e exigem ativação explícita.
 Todos os botões/teclas devem estar soltos ao abrir a nova conexão. Uma falha de
 autorização ou de abertura pausa o remapeamento, sem tentar outras interfaces

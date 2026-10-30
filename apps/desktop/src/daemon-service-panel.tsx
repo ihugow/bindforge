@@ -1,3 +1,4 @@
+import { AppButton } from "./app-button";
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -50,10 +51,10 @@ export function DaemonServicePanel({ native, active, connected, api = serviceApi
     {status?.external && <p role="status">O daemon foi iniciado fora do aplicativo. Encerre-o no terminal de origem e use Iniciar serviço para passar a gerenciá-lo aqui.</p>}
     {status && !status.binary_available && <p role="alert">Executável do daemon não encontrado. Instale o pacote completo do BindForge.</p>}
     <div className="button-row">
-      <button disabled={disabled || running || pending || status?.external || !status?.binary_available} onClick={() => void control("start")}>Iniciar serviço</button>
-      <button className="secondary-button" disabled={disabled || !running || status?.external} onClick={() => void control("stop")}>Parar serviço</button>
-      <button className="secondary-button" disabled={disabled || !running || status?.external || !status?.binary_available} onClick={() => void control("restart")}>Reiniciar serviço</button>
-      <button className="secondary-button" disabled={!native || busy || loading} onClick={() => { setError(""); setRefresh(n => n + 1); }}>Atualizar diagnóstico</button>
+      <AppButton disabled={disabled || running || pending || status?.external || !status?.binary_available} onClick={() => void control("start")}>Iniciar serviço</AppButton>
+      <AppButton className="secondary-button" disabled={disabled || !running || status?.external} onClick={() => void control("stop")}>Parar serviço</AppButton>
+      <AppButton className="secondary-button" disabled={disabled || !running || status?.external || !status?.binary_available} onClick={() => void control("restart")}>Reiniciar serviço</AppButton>
+      <AppButton className="secondary-button" disabled={!native || busy || loading} onClick={() => { setError(""); setRefresh(n => n + 1); }}>Atualizar diagnóstico</AppButton>
     </div>
     <label className="service-autostart"><input type="checkbox" checked={status?.autostart ?? false}
       disabled={disabled || (!status?.autostart && !status?.binary_available)}

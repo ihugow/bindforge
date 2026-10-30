@@ -1,3 +1,4 @@
+import { AppButton } from "./app-button";
 import { invoke } from "@tauri-apps/api/core";
 import { ProfileCover } from "./profile-cover";
 import { steamApps, coverFor, type FindSteamCovers, type SteamCover } from "./steam-covers";
@@ -116,17 +117,18 @@ export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, cap
   const selected = config?.profiles.find(p => p.id === draft?.id);
   const advanced = selected?.rules.some(r => r.executable !== null || r.title_contains !== null) ?? false;
   return <section className="profiles-panel" aria-labelledby="profiles-heading">
-    <div className="section-heading"><h2 id="profiles-heading" tabIndex={-1}>Seus perfis</h2>
-      {native && <div className="button-row"><button type="button" className="secondary-button" disabled={busy || !!draft || !!deleteId} onClick={reload}>Recarregar lista</button>
-        <button type="button" disabled={!config || busy || !!draft || !!deleteId} onClick={() => edit()}>Criar perfil</button></div>}
+    <div className="workspace-page-heading"><div><h2 id="profiles-heading" tabIndex={-1}>Seus perfis</h2><p>Crie perfis para personalizar suas ações em cada aplicativo.</p></div>
+      {native && <div className="workspace-page-actions"><AppButton type="button" className="secondary-button" disabled={busy || !!draft || !!deleteId} onClick={reload}>Recarregar lista</AppButton>
+        <AppButton type="button" disabled={!config || busy || !!draft || !!deleteId} onClick={() => edit()}>+ Criar perfil</AppButton></div>}
     </div>
     {!native && <p>Abra o aplicativo nativo para criar e salvar perfis.</p>}
     {native && !config && !error && <p role="status">Carregando perfis…</p>}
-    {config && <><p className="hint">O perfil Padrão é usado quando nenhum aplicativo corresponde. Cada perfil tem suas próprias ações, sem herança automática.</p>
+    {config && <>
       <ul className="profile-list">{config.profiles.map(p => <li key={p.id}>
         <ProfileCard profile={p} image={p.id === config.fallback_id ? undefined : coverFor(p.rules, covers)}
           disabled={busy || !!draft || !!deleteId} onEdit={() => edit(p)} />
-      </li>)}</ul></>}
+      </li>)}</ul>
+      <p className="hint">O perfil Padrão é usado quando nenhum aplicativo corresponde. Cada perfil tem suas próprias ações, sem herança automática.</p></>}
     {active && draft && config && <Modal title={draft.id ? "Editar perfil" : "Criar perfil"} busy={busy || iconLoading || iconSearching || !!deleteId} initialFocus="#profile-name" restoreFocus={editorTrigger}
       onDismiss={() => { setDraft(null); setCaptureOpen(false); setError(""); }}>
     <form className="profile-form" onSubmit={save}>
@@ -143,14 +145,14 @@ export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, cap
           <p className="hint" id="profile-icon-hint">PNG, JPG, WebP ou ICO de até 5 MB. Sem imagem, usamos o ícone padrão.</p>
           {!fallback && <ApplicationIconPicker apps={draft.apps} automaticAppId={automaticIconApp} hasIcon={!!draft.icon || iconLoading}
             onSelect={icon => patch({ icon })} onPending={setIconSearching} find={findIcons} />}
-          {draft.icon && <button type="button" className="secondary-button" onClick={() => patch({ icon: null })}>Usar ícone padrão</button>}
+          {draft.icon && <AppButton type="button" className="secondary-button" onClick={() => patch({ icon: null })}>Usar ícone padrão</AppButton>}
           {iconLoading && <p role="status">Preparando ícone…</p>}
         </div></div>
         {!fallback && <><label htmlFor="profile-apps">IDs dos aplicativos — um por linha</label>
           <textarea id="profile-apps" required={!advanced} rows={3} value={draft.apps} onChange={e => patch({ apps: e.target.value })} placeholder={"firefox\norg.kde.konsole"} disabled={advanced || busy} />
           <p className="hint">O ID deve corresponder exatamente ao informado pelo KDE. {advanced && "Este perfil tem regras avançadas; suas associações são preservadas nesta tela."}</p>
           {appIds(draft.apps).some(id => id.toLowerCase() === "gamescope") && <p role="status">A associação “gamescope” é genérica e não identifica um jogo específico. Use a detecção atualizada para obter um ID como steam:1808500.</p>}
-          {!advanced && <><button type="button" disabled={!connected || captureOpen} onClick={() => { captureTrigger.current = document.activeElement as HTMLElement; setCaptureOpen(true); }}>Detectar pela janela</button>
+          {!advanced && <><AppButton type="button" disabled={!connected || captureOpen} onClick={() => { captureTrigger.current = document.activeElement as HTMLElement; setCaptureOpen(true); }}>Detectar pela janela</AppButton>
             {!connected && <p className="hint">Conecte o daemon KDE para usar a detecção automática.</p>}
           </>}</>}
         {!draft.id && <><label htmlFor="profile-source">Como começar</label>
@@ -167,11 +169,11 @@ export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, cap
         <p className="hint">As ações existentes são preservadas. Configure os botões e teclas em Dispositivos. Salvar um perfil não ativa o remapeamento.</p>
         {error && <p role="alert">{error}</p>}
         <div className="profile-editor-actions">
-          <div className="button-row"><button type="submit" disabled={capturePending}>{busy ? "Salvando…" : "Salvar alterações"}</button><button type="button" className="secondary-button" onClick={() => { setDraft(null); setCaptureOpen(false); setError(""); }}>Cancelar</button></div>
-          {draft.id && !fallback && <button type="button" className="danger-button" disabled={capturePending || captureOpen} onClick={() => {
+          <div className="button-row"><AppButton type="submit" disabled={capturePending}>{busy ? "Salvando…" : "Salvar alterações"}</AppButton><AppButton type="button" className="secondary-button" onClick={() => { setDraft(null); setCaptureOpen(false); setError(""); }}>Cancelar</AppButton></div>
+          {draft.id && !fallback && <AppButton type="button" className="danger-button" disabled={capturePending || captureOpen} onClick={() => {
             deleteTrigger.current = document.activeElement as HTMLElement;
             setDeleteId(draft.id); setError(""); setMessage("");
-          }}>Excluir perfil</button>}
+          }}>Excluir perfil</AppButton>}
         </div>
       </fieldset>
     </form>
@@ -184,8 +186,8 @@ export function ProfilesPanel({ native, connected, onSaved, api = nativeApi, cap
       <p>Excluir o perfil <strong>{deleteTarget.name}</strong>? As associações e ações deste perfil serão removidas.</p>
       {error && <p role="alert">{error}</p>}
       <div className="button-row modal-actions">
-        <button type="button" data-cancel-delete disabled={busy} onClick={() => { setDeleteId(null); setError(""); }}>Cancelar</button>
-        <button type="button" className="danger-button" disabled={busy} onClick={() => confirmDelete(deleteTarget.id)}>{busy ? "Excluindo…" : "Confirmar exclusão"}</button>
+        <AppButton type="button" data-cancel-delete disabled={busy} onClick={() => { setDeleteId(null); setError(""); }}>Cancelar</AppButton>
+        <AppButton type="button" className="danger-button" disabled={busy} onClick={() => confirmDelete(deleteTarget.id)}>{busy ? "Excluindo…" : "Confirmar exclusão"}</AppButton>
       </div>
     </Modal>}
     {message && <p role="status">{message}</p>}
