@@ -1,0 +1,32 @@
+# Build from the local checkout: cd packaging/arch && makepkg -f
+pkgname=bindforge
+pkgver=0.1.0
+pkgrel=2
+pkgdesc='Mouse and keyboard remapping profiles for KDE Wayland'
+arch=('x86_64')
+url='https://github.com/ihugow/bindforge'
+license=('MIT')
+depends=('webkit2gtk-4.1' 'gtk3' 'libappindicator' 'systemd' 'systemd-libs' 'kwin' 'polkit' 'kmod' 'gcc-libs' 'glibc')
+makedepends=('rust' 'nodejs' 'npm' 'pkgconf')
+options=('!lto')
+
+build() {
+  cd "$startdir/../.."
+  export CARGO_TARGET_DIR="$PWD/target"
+  cargo build --release --locked -p bindforge-daemon -p bindforge-access --features kde-dbus
+  cd apps/desktop
+  npm ci
+  npm run tauri -- build --no-bundle
+}
+
+package() {
+  cd "$startdir/../.."
+  install -Dm755 target/release/bindforge-desktop "$pkgdir/usr/bin/bindforge"
+  install -Dm755 target/release/bindforge-daemon "$pkgdir/usr/libexec/bindforge/bindforge-daemon"
+  install -Dm755 target/release/bindforge-device-access "$pkgdir/usr/libexec/bindforge/bindforge-device-access"
+  install -Dm644 integrations/systemd/bindforge-daemon.service "$pkgdir/usr/lib/systemd/user/bindforge-daemon.service"
+  install -Dm644 integrations/polkit/org.bindforge.device-access.policy "$pkgdir/usr/share/polkit-1/actions/org.bindforge.device-access.policy"
+  install -Dm644 apps/desktop/src-tauri/icons/icon.png "$pkgdir/usr/share/icons/hicolor/32x32/apps/org.bindforge.desktop.png"
+  install -Dm644 packaging/arch/org.bindforge.desktop.desktop "$pkgdir/usr/share/applications/org.bindforge.desktop.desktop"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

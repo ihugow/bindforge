@@ -173,6 +173,22 @@ oferecem prévia, perfis, inventário, ativação/pausa de mouse e teclado e ger
 serviço do usuário. A assinatura de estado usa sinais D-Bus e um canal Tauri;
 o estado não é consultado periodicamente pela interface.
 
+## Pacote Arch Linux / CachyOS
+
+Com as dependências de compilação instaladas (`base-devel`, `rust`, `nodejs`,
+`npm`, `pkgconf` e as bibliotecas listadas em `packaging/arch/PKGBUILD`), execute:
+
+```bash
+cd apps/desktop
+npm run package:arch
+sudo pacman -U ../../packaging/arch/bindforge-0.1.0-2-x86_64.pkg.tar.zst
+```
+
+O pacote reúne interface, daemon, helper de acesso, política polkit e serviço
+systemd do usuário. A compilação usa o checkout local, incluindo alterações
+pendentes. Após atualizar, feche e reabra a interface e reinicie o serviço pela
+UI para carregar os binários novos. A instalação preserva os perfis do usuário.
+
 ## Serviço do usuário e pacote Fedora
 
 Em **Início → Serviço do BindForge**, use **Iniciar serviço**, **Parar serviço**

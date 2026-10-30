@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=BindForge
+Comment=Mouse and keyboard remapping profiles for KDE Wayland
+Exec=bindforge
+Icon=org.bindforge.desktop
+Terminal=false
+Categories=Utility;
+StartupWMClass=bindforge-desktop
